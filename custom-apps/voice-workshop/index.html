@@ -361,9 +361,8 @@
 
   <script>
   (function(){
-    var defaultHost = (location.hostname && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1')
-      ? 'http://' + location.hostname + ':8191'
-      : 'http://192.168.31.188:8191';
+    var isLoopback = (!location.hostname || location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0');
+    var defaultHost = isLoopback ? 'http://192.168.31.188:8191' : ('http://' + location.hostname + ':8191');
 
     var currentServer = localStorage.getItem('ai_voice_workshop_server') || defaultHost;
     var elServerInput = document.getElementById('serverUrlInput');
