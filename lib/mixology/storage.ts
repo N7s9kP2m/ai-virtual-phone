@@ -19,11 +19,13 @@ import {
     MIX_BUILTIN_GLASS_ID,
     MIX_BUILTIN_PREFACE_ID,
     MIX_BUILTIN_READER_ID,
+    MIX_BUILTIN_VOICE_CONSOLE_ID,
     createBuiltinBase,
     createBuiltinChecklist,
     createBuiltinGlass,
     createBuiltinPreface,
     createBuiltinReader,
+    createBuiltinVoiceConsole,
 } from "./builtin";
 
 const CABINET_KEY = "mixology_cabinet_v1";
@@ -53,6 +55,7 @@ export const MIX_BUILTIN_IDS: readonly string[] = [
     MIX_BUILTIN_GLASS_ID,
     MIX_BUILTIN_CHECKLIST_ID,
     MIX_BUILTIN_READER_ID,
+    MIX_BUILTIN_VOICE_CONSOLE_ID,
 ];
 
 export function isMixBuiltinId(id: string): boolean {
@@ -61,7 +64,14 @@ export function isMixBuiltinId(id: string): boolean {
 
 /** 出厂件工厂直读：不落库，每次现造，天然随版本更新 */
 export function listMixBuiltins(kind?: MixMaterialKind): MixMaterial[] {
-    const factory: MixMaterial[] = [createBuiltinPreface(), createBuiltinBase(), createBuiltinGlass(), createBuiltinChecklist(), createBuiltinReader()];
+    const factory: MixMaterial[] = [
+        createBuiltinPreface(),
+        createBuiltinBase(),
+        createBuiltinGlass(),
+        createBuiltinChecklist(),
+        createBuiltinReader(),
+        createBuiltinVoiceConsole(),
+    ];
     return kind ? factory.filter((m) => m.kind === kind) : factory;
 }
 

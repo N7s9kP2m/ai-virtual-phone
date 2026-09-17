@@ -28,3 +28,9 @@ tools/weixin-local-assistant/config.txt
 *.ts.net.crt
 *.ts.net.key
 /public/models/world-builder/
+
+# Large archives and build checks
+.next-*
+public/*.zip
+public/*.tar.gz
+

@@ -148,13 +148,15 @@ async function synthesizeMinimax(text: string, config: VoiceApiConfig, emotion?:
 // ── OpenAI TTS ──────────────────────────────────────
 
 async function synthesizeOpenAI(text: string, config: VoiceApiConfig): Promise<Blob | null> {
-    if (!config.apiKey) throw new Error("OpenAI API Key 未配置");
-
     const baseUrl = config.baseUrl || "https://api.openai.com/v1";
+    const isLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|0\.0\.0\.0)(:\d+)?/i.test(baseUrl);
+    const apiKey = config.apiKey?.trim() || (isLocal ? "sk-local-none" : "");
+    if (!apiKey) throw new Error("OpenAI API Key 未配置");
+
     const response = await fetchWithTimeout(`${baseUrl.replace(/\/$/, "")}/audio/speech`, {
         method: "POST",
         headers: {
-            Authorization: `Bearer ${config.apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
         },
         body: JSON.stringify({

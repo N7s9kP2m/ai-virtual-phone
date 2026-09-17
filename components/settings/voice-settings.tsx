@@ -498,7 +498,68 @@ export function VoiceSettings() {
                 setFetchedVoices(prev => ({ ...prev, [config.id]: nextCustomVoices }));
 
             } else if (config.provider === "OpenAI") {
-                setFetchedVoices(prev => ({ ...prev, [config.id]: DEFAULT_OPENAI_VOICES }));
+                const base = (config.baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "");
+                const headers: Record<string, string> = {};
+                if (config.apiKey && config.apiKey.trim()) {
+                    headers["Authorization"] = `Bearer ${config.apiKey.trim()}`;
+                }
+                let voiceList: VoiceOption[] = [];
+                let fetchSuccess = false;
+
+                // 优先尝试语音列表端点 /audio/voices
+                try {
+                    const resp = await fetch(`${base}/audio/voices`, { headers });
+                    if (resp.ok) {
+                        const resData = await resp.json().catch(() => ({}));
+                        const rawArr = Array.isArray(resData.voices) ? resData.voices : (Array.isArray(resData.data) ? resData.data : []);
+                        if (rawArr.length > 0) {
+                            voiceList = rawArr.map((item: any) => ({
+                                id: String(item.id || item.voice_id || item.name),
+                                name: String(item.name || item.id),
+                                isDefault: Boolean(item.is_default),
+                            }));
+                            fetchSuccess = true;
+                        }
+                    }
+                } catch {
+                    // ignore
+                }
+
+                // 次选尝试 /models 端点
+                if (!fetchSuccess) {
+                    try {
+                        const resp = await fetch(`${base}/models`, { headers });
+                        if (resp.ok) {
+                            const resData = await resp.json().catch(() => ({}));
+                            const rawArr = Array.isArray(resData.voices) ? resData.voices : (Array.isArray(resData.data) ? resData.data : []);
+                            if (rawArr.length > 0) {
+                                voiceList = rawArr.map((item: any) => ({
+                                    id: String(item.id || item.name),
+                                    name: String(item.name || item.id),
+                                    isDefault: Boolean(item.is_default),
+                                }));
+                                fetchSuccess = true;
+                            }
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }
+
+                if (fetchSuccess && voiceList.length > 0) {
+                    const nextOptions = uniqueOptions([...voiceList, ...DEFAULT_OPENAI_VOICES]);
+                    updateConfig(config.id, { customVoices: nextOptions });
+                    setFetchedVoices(prev => ({ ...prev, [config.id]: nextOptions }));
+                    
+                    // 如果当前音色为默认 alloy 或未配置，且服务端有默认克隆音色，智能预选它
+                    const defaultTarget = voiceList.find((v: any) => v.isDefault) || voiceList[0];
+                    if (defaultTarget && (!config.defaultVoice || config.defaultVoice === "alloy")) {
+                        updateConfig(config.id, { defaultVoice: defaultTarget.id });
+                    }
+                } else {
+                    setFetchedVoices(prev => ({ ...prev, [config.id]: DEFAULT_OPENAI_VOICES }));
+                    throw new Error(`未能从 ${base} 获取到音色列表，已保留默认音色`);
+                }
             } else {
                 throw new Error("该服务商暂不支持拉取模型列表");
             }
@@ -903,7 +964,7 @@ export function VoiceSettings() {
                                                         className="ui-btn ui-btn ui-btn-soft-action w-full"
                                                     >
                                                         <RefreshCw size={16} className={isFetching[config.id] ? "animate-spin" : ""} />
-                                                        {isFetching[config.id] ? "同步中..." : config.provider === "Minimax" ? "同步音色列表" : "显示默认音色"}
+                                                        {isFetching[config.id] ? "同步中..." : "同步音色列表"}
                                                     </button>
                                                     {config.provider === "Minimax" && (
                                                         <button
