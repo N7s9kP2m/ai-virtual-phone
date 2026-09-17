@@ -1,10 +1,10 @@
-﻿{
+{
   "sdkVersion": "1.0",
   "id": "voice.workshop",
-  "name": "音色工坊",
+  "name": "AI 声音克隆与音色工坊",
   "version": "1.0.0",
   "author": "Antigravity",
-  "description": "专为 Float 小手机打造的 AI 零样本声音克隆与音色管理中心：支持手机直连电脑声学引擎、手机录音/上传一键克隆音色、实时试听调速、以及一键设为小手机全局默认音色。",
+  "description": "专为 Float 小手机打造的 AI 声音克隆与音色工坊：手机直接试听、录音/上传克隆新音色、实时调速以及一键设为小手机全局默认音色。",
   "icon": "icon.png",
   "entry": "index.html",
   "permissions": [

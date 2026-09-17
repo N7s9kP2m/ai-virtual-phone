@@ -689,7 +689,8 @@ export function AppMarketApp({ onClose, onOpenCustomApp, onInstallToDesktop, onN
       const zip = new JSZip();
       let manifestRecord: Record<string, unknown> = baseApp ? { ...baseApp.manifest } : {};
       if (manualFiles.manifest) {
-        const parsed = JSON.parse(await manualFiles.manifest.text()) as unknown;
+        const text = (await manualFiles.manifest.text()).replace(/^\uFEFF/, "").trim();
+        const parsed = JSON.parse(text) as unknown;
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("manifest.json 必须是 JSON 对象。");
         manifestRecord = { ...manifestRecord, ...parsed as Record<string, unknown> };
       }

@@ -1065,7 +1065,8 @@ export async function loadCustomAppPackage(file: File): Promise<InstalledCustomA
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const manifestFile = zip.file("manifest.json");
   if (!manifestFile) throw new Error("应用包缺少 manifest.json。");
-  const manifest = normalizeCustomAppManifest(JSON.parse(await manifestFile.async("text")));
+  const rawManifestText = (await manifestFile.async("text")).replace(/^\uFEFF/, "").trim();
+  const manifest = normalizeCustomAppManifest(JSON.parse(rawManifestText));
   const entryPath = normalizeAssetPath(manifest.entry || "index.html");
   const entryFile = zip.file(entryPath);
   if (!entryFile) throw new Error(`应用包缺少入口文件：${entryPath}`);
