@@ -1,5 +1,7 @@
 "use client";
 
+import { useComposerAutosize } from "@/components/use-composer-autosize";
+
 // 独家特调 · 对局画面：角色封面打底 + 三段蒙版，AI 正文无气泡全宽、
 // 玩家右侧气泡、小票全宽卡；全程无任何标签徽章，保沉浸。
 // 装饰材料的 CSS 以 <style> 注入本画面容器（认 .mix-* 官方语义类）。
@@ -135,6 +137,8 @@ function StateBar({ state }: { state: MixState }) {
 export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
     const [session, setSession] = useState<MixSession | null>(() => getMixSession(sessionId));
     const [input, setInput] = useState("");
+    const inputRef = useRef<HTMLTextAreaElement | null>(null);
+    useComposerAutosize(inputRef, input);
     const [busy, setBusy] = useState(false);
     /**
      * 正在写的那一段。模型每吐一小段就回调一次，一个 token 重渲染一次太浪费，
@@ -1340,6 +1344,7 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
                     <RotateCcw size={18} />
                 </button>
                 <textarea
+                    ref={inputRef}
                     className="mix-game-input"
                     rows={1}
                     value={input}

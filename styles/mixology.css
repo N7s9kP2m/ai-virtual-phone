@@ -348,6 +348,61 @@
     color: #e2a3a3;
 }
 
+/* Long regex and HTML need the full sheet width, rather than single-line inputs. */
+.mix-filter-card {
+    display: block;
+    padding: 0;
+    min-width: 0;
+}
+
+.mix-filter-card-title {
+    padding: 14px;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.mix-filter-card-status {
+    display: block;
+    margin: 5px 0 0 16px;
+    color: var(--mix-faint);
+    font-size: 11px;
+}
+
+.mix-filter-card-body {
+    display: grid;
+    gap: 14px;
+    padding: 0 14px 14px;
+    min-width: 0;
+}
+
+.mix-filter-card-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.mix-filter-enable {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+}
+
+.mix-filter-card-field {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--mix-faint);
+}
+
+.mix-filter-card .mix-filter-find { min-height: 130px; }
+.mix-filter-card .mix-filter-replace { min-height: 300px; }
+.mix-filter-card-tools button:disabled { opacity: .35; cursor: default; }
+
 .mix-filter-result {
     margin-top: 8px;
     padding: 10px 12px;
@@ -1606,7 +1661,7 @@
 .mix-game-input {
     flex: 1;
     min-width: 0;
-    max-height: 108px;
+    max-height: 160px;
     border: 1px solid var(--mix-line);
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.05);

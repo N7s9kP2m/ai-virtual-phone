@@ -1,5 +1,7 @@
 "use client";
 
+import { resizeComposerTextarea, useComposerAutosize } from "@/components/use-composer-autosize";
+
 import { forwardRef, Fragment, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChatSession, ChatMessage, CHAT_APP_SETTINGS_UPDATED_EVENT, CHAT_INITIAL_VISIBLE_MESSAGE_COUNT, CHAT_LOAD_MORE_MESSAGE_COUNT, CHAT_REQUEST_REPLY_EVENT, loadChatAppSettings, loadChatMessages, loadChatContacts, loadChatSessions, saveChatSessions, pushChatMessage, updateChatMessage, deleteChatMessage, deleteChatMessagesFrom, deleteChatMessagesByIds, retractChatMessage, editChatMessage, updateMessageMediaData, replaceResponseBatchWithParts, replaceGroupResponseRound, isReadingDiscussMessage, isSystemInstructionMessage, createResponseBatchId, createResponseRoundId, getLatestStateValues, getLatestCharacterStateValues, compareChatMessages, isSessionStreamingEnabled } from "@/lib/chat-storage";
 import { cleanStreamText, splitStreamPreviewSegments, stripLiteralTexts, stripXmlTagBlocks } from "@/lib/stream-preview";
@@ -662,6 +664,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
 }, ref) {
     const [inputText, setInputText] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    useComposerAutosize(textareaRef, inputText);
     // 表情包搜索联想：ESC/失焦置 true 隐藏，输入变化重新开启
     const [suggestClosed, setSuggestClosed] = useState(false);
     // 围观群/被禁言：输入与富媒体入口全部锁定，只留线下切换和生成按钮
@@ -683,8 +686,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
         requestAnimationFrame(() => {
             const ta = textareaRef.current;
             if (!ta) return;
-            ta.style.height = "auto";
-            ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+            resizeComposerTextarea(ta);
             if (options?.focus !== false) ta.focus();
         });
     }, []);
@@ -785,8 +787,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
                 onChange={e => {
                     setInputText(e.target.value);
                     setSuggestClosed(false);
-                    e.target.style.height = "auto";
-                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+                    resizeComposerTextarea(e.target);
                 }}
                 onFocus={(e) => {
                     if (panelOpen) {
@@ -942,6 +943,7 @@ const OfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, {
     const [inputText, setInputText] = useState("");
     const inputTextRef = useRef("");
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    useComposerAutosize(textareaRef, inputText);
 
     const resetTextareaHeight = () => {
         if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -950,8 +952,7 @@ const OfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, {
     const resizeTextarea = useCallback(() => {
         const ta = textareaRef.current;
         if (!ta) return;
-        ta.style.height = "auto";
-        ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+        resizeComposerTextarea(ta);
     }, []);
 
     const setTextAndResize = useCallback((text: string) => {
@@ -1005,8 +1006,7 @@ const OfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, {
                 onChange={e => {
                     inputTextRef.current = e.target.value;
                     setInputText(e.target.value);
-                    e.target.style.height = "auto";
-                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+                    resizeComposerTextarea(e.target);
                 }}
                 onFocus={(e) => {
                     if (showEmojiPanel) {

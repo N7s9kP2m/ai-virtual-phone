@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MixState } from "@/lib/mixology/types";
+import { buildMixFrameBridge } from "@/lib/mixology/frame-bridge";
 import { createMixFrameHeightTracker, nextMixFrameHeight } from "@/lib/mixology/frame-height";
 import { buildMixTicketDoc } from "@/lib/mixology/ticket-doc";
 
@@ -25,22 +26,7 @@ export function MixTicketFrame({ html, raw, state }: { html: string; raw: string
 
     const srcDoc = useMemo(() => {
         const doc = buildMixTicketDoc(html, raw, state);
-        const bridge = `<script>(function(){
-  var frameId=${JSON.stringify(frameId)};
-  /* 只用内容包围盒测高（scrollHeight 会跟着 iframe 视口涨，会形成"越量越高"的回路） */
-  function measure(){var b=document.body;if(!b)return ${FRAME_MIN_HEIGHT};
-    var cs=window.getComputedStyle(b);var mt=parseFloat(cs.marginTop)||0;var mb=parseFloat(cs.marginBottom)||0;
-    var h=b.getBoundingClientRect().height+mt+mb;
-    for(var i=0;i<b.children.length;i++){var c=b.children[i].getBoundingClientRect();if(c.width||c.height)h=Math.max(h,c.bottom+mb);}
-    return Math.max(Math.ceil(h)+2,${FRAME_MIN_HEIGHT});}
-  function send(){parent.postMessage({source:'mix-ticket-frame',type:'resize',id:frameId,height:measure()},'*');}
-  function sched(){requestAnimationFrame(function(){send();requestAnimationFrame(send);});}
-  window.addEventListener('load',sched);window.addEventListener('resize',sched);
-  if(window.MutationObserver)new MutationObserver(sched).observe(document.documentElement,{attributes:true,childList:true,subtree:true,characterData:true});
-  if(window.ResizeObserver&&document.body)new ResizeObserver(sched).observe(document.body);
-  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(sched);
-  setTimeout(send,60);setTimeout(send,400);setTimeout(send,1200);
-})();</` + `script>`;
+        const bridge = buildMixFrameBridge("mix-ticket-frame", frameId, FRAME_MIN_HEIGHT);
         return /<\/body>/i.test(doc) ? doc.replace(/<\/body>/i, `${bridge}</body>`) : doc + bridge;
     }, [html, raw, state, frameId]);
 

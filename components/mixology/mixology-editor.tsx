@@ -13,6 +13,7 @@ import type {
     MixMaterial,
     MixMaterialKind,
     MixTextMaterial,
+    MixPromptEntry,
     MixTicketVar,
 } from "@/lib/mixology/types";
 import { createMixId, formatMixTags, MIX_KIND_LABELS, MIX_PANEL_DEFAULT_LAYOUT, MIX_SECTION_TITLE_DEFAULTS, MIX_TAG_MAX, mixPanelLayoutOf, normalizeMixConnectorNames, parseMixTags, type MixSectionTitleKey } from "@/lib/mixology/types";
@@ -198,6 +199,15 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
     );
     // 文本类 / 小票 / 装饰 / 尾调
     // 新建「核对」时预填官方出厂件的清单（状态栏 + 小剧场各一块的通用版），作者在此基础上增删
+    const [promptEntries, setPromptEntries] = useState<MixPromptEntry[] | undefined>(() =>
+        initial && "entries" in initial ? initial.entries?.map(entry => ({ ...entry })) : undefined);
+    const moveItem = <T,>(items: T[], index: number, delta: number): T[] => {
+        const target = index + delta;
+        if (target < 0 || target >= items.length) return items;
+        const next = [...items];
+        [next[index], next[target]] = [next[target], next[index]];
+        return next;
+    };
     const [content, setContent] = useState(
         initial && "content" in initial
             ? (initial as MixTextMaterial).content
@@ -445,7 +455,7 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
             return;
         }
         if (kind === "persona") {
-            if (!content.trim()) {
+            if (!content.trim() && !promptEntries?.some(e => e.content.trim())) {
                 setError("面具的人设内容不能为空。");
                 return;
             }
@@ -454,7 +464,7 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
         }
         if (kind === "filter") {
             const cleaned = rules
-                .map((r) => ({ find: r.find.trim(), replace: r.replace, mode: r.mode }))
+                .map((r) => ({ ...r, find: r.find.trim() }))
                 .filter((r) => r.find);
             if (!cleaned.length) {
                 setError("滤网至少要有一条查找不为空的规则。");
@@ -483,7 +493,8 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
         onSave({
             ...meta,
             kind,
-            content: content.trim(),
+            content: promptEntries ? promptEntries.filter(e => e.enabled !== false).map(e => `### ${e.name}\n${e.content}`).join("\n\n") : content.trim(),
+            ...(promptEntries ? { entries: promptEntries } : {}),
             ...(kind === "preface" ? { sectionTitles: cleanedTitles } : {}),
         } as MixTextMaterial);
     };
@@ -712,14 +723,22 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
                 </>
             ) : null}
             {kind === "preface" || kind === "base" || kind === "flavor" || kind === "glass" || kind === "strength" || kind === "checklist" ? (
-                <Field label={TEXT_FIELD_COPY[kind].label} hint="必填，可用 {{char}} / {{user}}">
-                    <textarea
-                        className="mix-textarea"
-                        style={{ minHeight: 170 }}
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        placeholder={TEXT_FIELD_COPY[kind].placeholder}
-                    />
+                <Field label={TEXT_FIELD_COPY[kind].label} hint="条目从上到下生效；关闭的条目保留但不进入提示词">
+                    {promptEntries ? <div className="mix-example-list">
+                        {promptEntries.map((entry,i) => <details key={entry.id}>
+                            <summary>{entry.enabled === false ? "○" : "●"} {entry.name || "未命名条目"}</summary>
+                            <label><input type="checkbox" checked={entry.enabled !== false} onChange={e => setPromptEntries(prev => prev?.map((v,j) => j===i ? {...v,enabled:e.target.checked} : v))}/> 启用</label>
+                            <input className="mix-input" value={entry.name} onChange={e => setPromptEntries(prev => prev?.map((v,j) => j===i ? {...v,name:e.target.value} : v))}/>
+                            <textarea className="mix-textarea" value={entry.content} onChange={e => setPromptEntries(prev => prev?.map((v,j) => j===i ? {...v,content:e.target.value} : v))}/>
+                            <button type="button" disabled={i===0} onClick={() => setPromptEntries(prev => prev && moveItem(prev,i,-1))}>上移</button>
+                            <button type="button" disabled={i===promptEntries.length-1} onClick={() => setPromptEntries(prev => prev && moveItem(prev,i,1))}>下移</button>
+                            <button type="button" onClick={() => setPromptEntries(prev => prev?.filter((_,j) => j!==i))}>删除</button>
+                        </details>)}
+                        <button type="button" className="mix-pill-btn" onClick={() => setPromptEntries(prev => [...(prev??[]),{id:createMixId("entry"),name:"新条目",content:"",enabled:true}])}>添加条目</button>
+                    </div> : <>
+                        <textarea className="mix-textarea" style={{minHeight:170}} value={content} onChange={e => setContent(e.target.value)} placeholder={TEXT_FIELD_COPY[kind].placeholder}/>
+                        <button type="button" className="mix-pill-btn" onClick={() => setPromptEntries([{id:createMixId("entry"),name:"原内容",content,enabled:true}])}>改为条目编辑</button>
+                    </>}
                 </Field>
             ) : null}
             {kind === "preface" ? (
@@ -968,42 +987,31 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
                     <Field label="清洗规则" hint="从上到下依次执行；查找是 JS 正则（自动带 g），替换可用 $1 引用捕获组，留空即删除">
                         <div className="mix-example-list">
                             {rules.map((rule, i) => (
-                                <div className="mix-filter-rule" key={i} data-bad={filterTest.badIndexes.includes(i) ? "true" : undefined}>
-                                    <div className="mix-filter-rule-main">
-                                        <input
-                                            className="mix-input"
-                                            data-code="true"
-                                            value={rule.find}
-                                            onChange={(e) => setRules((prev) => prev.map((r, idx) => (idx === i ? { ...r, find: e.target.value } : r)))}
-                                            placeholder="查找（正则），例：\*\*|——+"
-                                        />
-                                        <input
-                                            className="mix-input"
-                                            data-code="true"
-                                            value={rule.replace}
-                                            onChange={(e) => setRules((prev) => prev.map((r, idx) => (idx === i ? { ...r, replace: e.target.value } : r)))}
-                                            placeholder="替换为（留空=删除）"
-                                        />
-                                        {filterTest.badIndexes.includes(i) ? <div className="mix-filter-rule-bad">正则写法有误，这条不会生效</div> : null}
+                                <details className="mix-filter-rule mix-filter-card" key={i} data-bad={filterTest.badIndexes.includes(i) ? "true" : undefined}>
+                                    <summary className="mix-filter-card-title">
+                                        <span>{i + 1}. {rule.name || "未命名规则"}</span>
+                                        <span className="mix-filter-card-status">{rule.enabled === false ? "已关闭" : "已启用"} · {rule.mode === "display" ? "仅显示" : "进上下文"}</span>
+                                    </summary>
+                                    <div className="mix-filter-card-body">
+                                        <div className="mix-filter-card-tools">
+                                            <label className="mix-filter-enable"><input type="checkbox" checked={rule.enabled !== false} onChange={e => setRules(prev => prev.map((r,j) => j === i ? {...r,enabled:e.target.checked} : r))}/> 启用</label>
+                                            <button type="button" className="mix-filter-mode" data-mode={rule.mode} onClick={() => setRules(prev => prev.map((r,j) => j === i ? {...r,mode:r.mode === "display" ? "context" : "display"} : r))}>{rule.mode === "display" ? "仅显示" : "进上下文"}</button>
+                                            <button type="button" className="mix-pill-btn" disabled={i === 0} onClick={() => setRules(prev => moveItem(prev,i,-1))}>上移</button>
+                                            <button type="button" className="mix-pill-btn" disabled={i === rules.length - 1} onClick={() => setRules(prev => moveItem(prev,i,1))}>下移</button>
+                                            <button type="button" className="mix-icon-btn" onClick={() => setRules(prev => prev.filter((_,j) => j !== i))} aria-label="删除这条规则"><Trash2 size={16}/></button>
+                                        </div>
+                                        <label className="mix-filter-card-field">规则名称
+                                            <input className="mix-input" value={rule.name ?? ""} placeholder={`规则 ${i+1} 名称`} onChange={e => setRules(prev => prev.map((r,j) => j === i ? {...r,name:e.target.value} : r))}/>
+                                        </label>
+                                        <label className="mix-filter-card-field">查找正则
+                                            <textarea className="mix-textarea mix-filter-find" data-code="true" rows={5} spellCheck={false} autoCapitalize="off" autoCorrect="off" value={rule.find} onChange={e => setRules(prev => prev.map((r,j) => j === i ? {...r,find:e.target.value} : r))} placeholder="查找正则，支持 /pattern/flags"/>
+                                        </label>
+                                        <label className="mix-filter-card-field">替换内容 / HTML
+                                            <textarea className="mix-textarea mix-filter-replace" data-code="true" rows={14} spellCheck={false} autoCapitalize="off" autoCorrect="off" value={rule.replace} onChange={e => setRules(prev => prev.map((r,j) => j === i ? {...r,replace:e.target.value} : r))} placeholder="替换文本或 HTML / CSS；留空表示删除"/>
+                                        </label>
+                                        {filterTest.badIndexes.includes(i) ? <div className="mix-filter-rule-bad">正则写法有误，请修正后保存</div> : null}
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="mix-filter-mode"
-                                        data-mode={rule.mode}
-                                        onClick={() => setRules((prev) => prev.map((r, idx) => (idx === i ? { ...r, mode: r.mode === "display" ? "context" : "display" } : r)))}
-                                        title="仅显示：存原文，渲染时替换，全部历史即时生效；进上下文：入库前清洗，发回模型的历史也是洗过的，只对新回复生效"
-                                    >
-                                        {rule.mode === "display" ? "仅显示" : "进上下文"}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="mix-icon-btn"
-                                        onClick={() => setRules((prev) => prev.filter((_, idx) => idx !== i))}
-                                        aria-label="删除这条规则"
-                                    >
-                                        <Trash2 size={15} />
-                                    </button>
-                                </div>
+                                </details>
                             ))}
                             <button
                                 type="button"

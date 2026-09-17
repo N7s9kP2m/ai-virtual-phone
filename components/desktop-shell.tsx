@@ -922,16 +922,12 @@ function useAndroidCaretKeyboardLift() {
     if (typeof window === "undefined" || typeof document === "undefined") return;
 
     const root = document.documentElement;
-    if (!/Android/i.test(navigator.userAgent)) {
-      root.style.removeProperty("--mobile-keyboard-lift");
-      return;
-    }
-
-    const mobileMq = window.matchMedia("(max-width: 500px) and (hover: none) and (pointer: coarse)");
+    const mobileMq = window.matchMedia("(max-width: 768px), (pointer: coarse) and (max-width: 1024px), (hover: none) and (max-width: 1024px)");
     const viewport = window.visualViewport;
     let focusedElement: HTMLElement | null = null;
     let raf = 0;
     let currentLift = 0;
+    let settleTimers: number[] = [];
 
     const applyLift = (nextLift: number) => {
       const rounded = Math.max(0, Math.round(nextLift));
@@ -954,32 +950,43 @@ function useAndroidCaretKeyboardLift() {
 
       const keyboardTop = viewport.offsetTop + viewport.height;
       const keyboardInset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-      const targetRect = getKeyboardTargetRect(element);
-      const gap = 36;
+      // Keep the entire composer visible, including send/actions below the caret.
+      const composer = element.closest(".chat-input-bar, .story-composer, .mix-game-inputbar");
+      const targetRect = composer ? composer.getBoundingClientRect() : getKeyboardTargetRect(element);
+      const gap = keyboardInset >= 80 ? 8 : 0;
 
-      if (keyboardInset < 80) {
-        applyLift(0);
-        return;
-      }
-
-      const naturalBottom = targetRect.bottom + currentLift;
+      // Account for the rendered translation during the shell's CSS transition.
+      const wrap = element.closest(".phone-shell-wrap");
+      const transform = wrap ? getComputedStyle(wrap).transform : "none";
+      const renderedLift = transform !== "none" && typeof DOMMatrixReadOnly !== "undefined"
+        ? Math.max(0, -new DOMMatrixReadOnly(transform).m42)
+        : currentLift;
+      const naturalBottom = targetRect.bottom + renderedLift;
       const neededLift = Math.max(0, naturalBottom + gap - keyboardTop);
-      applyLift(Math.min(keyboardInset, neededLift));
+      // Some browsers shrink innerHeight too, making the reported inset zero.
+      // Actual overlap remains reliable even when those metrics disagree.
+      applyLift(Math.min(window.innerHeight, neededLift));
     };
 
     const requestUpdate = () => {
       if (raf) window.cancelAnimationFrame(raf);
       raf = window.requestAnimationFrame(update);
     };
+    const settle = () => {
+      settleTimers.forEach(window.clearTimeout);
+      requestUpdate();
+      settleTimers = [100, 300, 600].map(delay => window.setTimeout(requestUpdate, delay));
+    };
 
     const handleFocusIn = (event: FocusEvent) => {
       const target = event.target;
       if (!isKeyboardEditableElement(target)) return;
       focusedElement = target;
-      requestUpdate();
+      settle();
     };
 
     const handleFocusOut = () => {
+      settleTimers.forEach(window.clearTimeout);
       focusedElement = null;
       applyLift(0);
     };
@@ -989,7 +996,7 @@ function useAndroidCaretKeyboardLift() {
     };
 
     const handleViewportChange = () => {
-      if (focusedElement) requestUpdate();
+      if (focusedElement) settle();
     };
 
     document.addEventListener("focusin", handleFocusIn);
@@ -999,9 +1006,16 @@ function useAndroidCaretKeyboardLift() {
     document.addEventListener("input", handleCaretMove, true);
     viewport?.addEventListener("resize", handleViewportChange);
     viewport?.addEventListener("scroll", handleViewportChange);
+    window.addEventListener("resize", handleViewportChange);
+    const shell = document.querySelector(".phone-shell");
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(handleViewportChange) : null;
+    if (shell) observer?.observe(shell);
 
     return () => {
       if (raf) window.cancelAnimationFrame(raf);
+      settleTimers.forEach(window.clearTimeout);
+      observer?.disconnect();
+      window.removeEventListener("resize", handleViewportChange);
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("focusout", handleFocusOut);
       document.removeEventListener("click", handleCaretMove, true);

@@ -5,6 +5,7 @@
 // 高度自适应桥与小票画布同款；allow-scripts 无 same-origin，碰不到宿主页面与数据。
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { buildMixFrameBridge } from "@/lib/mixology/frame-bridge";
 import { createMixFrameHeightTracker, nextMixFrameHeight } from "@/lib/mixology/frame-height";
 
 /** 是否含 HTML 标签：含则按作者排版渲染，纯文本走默认样式 */
@@ -34,17 +35,7 @@ function RichFrame({ html, inert }: { html: string; inert?: boolean }) {
         const base = /<html[\s>]/i.test(html)
             ? html
             : `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>body{margin:0;color:#f2f0f7;font:14px/1.8 system-ui,-apple-system,sans-serif;background:transparent;word-break:break-word}</style></head><body>${html}</body></html>`;
-        const bridge = `<script>(function(){
-  var frameId=${JSON.stringify(frameId)};
-  function measure(){var b=document.body;if(!b)return ${FRAME_MIN_HEIGHT};var r=b.getBoundingClientRect();var h=r.height;
-    for(var i=0;i<b.children.length;i++){var c=b.children[i].getBoundingClientRect();if(c.width||c.height)h=Math.max(h,c.bottom-r.top);}
-    return Math.max(Math.ceil(h),${FRAME_MIN_HEIGHT});}
-  function send(){parent.postMessage({source:'mix-rich-frame',type:'resize',id:frameId,height:measure()},'*');}
-  function sched(){requestAnimationFrame(function(){send();requestAnimationFrame(send);});}
-  window.addEventListener('load',sched);window.addEventListener('resize',sched);
-  if(window.MutationObserver)new MutationObserver(sched).observe(document.documentElement,{attributes:true,childList:true,subtree:true,characterData:true});
-  setTimeout(send,60);setTimeout(send,400);
-})();</` + `script>`;
+        const bridge = buildMixFrameBridge("mix-rich-frame", frameId, FRAME_MIN_HEIGHT);
         return /<\/body>/i.test(base) ? base.replace(/<\/body>/i, `${bridge}</body>`) : base + bridge;
     }, [html, frameId]);
 

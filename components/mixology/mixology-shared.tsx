@@ -340,13 +340,16 @@ export function MaterialDetail({ material }: { material: MixMaterial }) {
                     target={{ kind: "filter", rules: material.rules }}
                     disabled={!material.rules.length}
                 />
-                <DetailField
-                    label={`清洗规则 · ${material.rules.length} 条`}
-                    value={material.rules
-                        .map((r, i) => `${i + 1}.（${r.mode === "display" ? "仅显示" : "进上下文"}）/${r.find}/ → ${r.replace || "（删除）"}`)
-                        .join("\n")}
-                    code
-                />
+                <div className="mix-filter-entry-list">
+                    <div className="mix-detail-label">清洗规则 · {material.rules.length} 条</div>
+                    {material.rules.map((rule, index) => (
+                        <details key={index} style={{ margin: "12px 0", padding: 10, border: "1px solid rgba(160,150,190,.25)", borderRadius: 12 }}>
+                            <summary style={{ cursor: "pointer" }}>{index + 1}. {rule.name || `规则 ${index + 1}`} · {rule.enabled === false ? "已关闭" : "已启用"} · {rule.mode === "display" ? "仅显示" : "进上下文"}</summary>
+                            <DetailField label="查找" value={rule.find} code />
+                            <DetailField label="替换" value={rule.replace || "（删除）"} code />
+                        </details>
+                    ))}
+                </div>
             </>
         );
     }
@@ -392,7 +395,17 @@ export function MaterialDetail({ material }: { material: MixMaterial }) {
     return (
         <>
             <DetailField label="一句话介绍" value={material.hook} />
-            <DetailField label={`${MIX_KIND_LABELS[material.kind]}内容`} value={material.content} />
+            {"entries" in material && Array.isArray(material.entries) ? (
+                <div className="mix-preset-entry-list">
+                    <div className="mix-detail-label">预设条目 · {material.entries.length} 条 · {material.entries.filter(entry => entry.enabled !== false).length} 条启用</div>
+                    {material.entries.map((entry, index) => (
+                        <details key={entry.id} style={{ margin: "12px 0", padding: 10, border: "1px solid rgba(160,150,190,.25)", borderRadius: 12 }}>
+                            <summary style={{ cursor: "pointer" }}>{index + 1}. {entry.name} · {entry.enabled === false ? "已关闭" : "已启用"}</summary>
+                            <div className="mix-detail-value" style={{ marginTop: 10 }}>{entry.content}</div>
+                        </details>
+                    ))}
+                </div>
+            ) : <DetailField label={`${MIX_KIND_LABELS[material.kind]}内容`} value={material.content} />}
         </>
     );
 }

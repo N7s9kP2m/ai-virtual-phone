@@ -261,7 +261,7 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
             scrollLeft: el.scrollLeft,
             hasMoved: false,
         };
-        try { el.setPointerCapture(e.pointerId); } catch {}
+        // Capture after dragging begins so chip clicks retain their target.
     }, []);
 
     const handleChipPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -271,6 +271,7 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
         const dx = e.clientX - chipDragRef.current.startX;
         if (Math.abs(dx) > 4) {
             chipDragRef.current.hasMoved = true;
+            try { el.setPointerCapture(e.pointerId); } catch {}
         }
         el.scrollLeft = chipDragRef.current.scrollLeft - dx;
     }, []);
@@ -425,7 +426,7 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
                 const pack = parseMixRecipeFile(await file.text());
                 if (pack) {
                     const finishPack = () => {
-                        showToast(importMixRecipePack(pack));
+                        showToast(importMixRecipePack(pack, undefined, { localFile: true }));
                         refresh();
                     };
                     // 整杯打包里夹着信任模式的机括：和单件导入一样，入柜前明示
@@ -1152,6 +1153,22 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
                             <button type="button" className="mix-icon-btn" onClick={() => setDetail(null)} aria-label="关闭"><X size={18} /></button>
                         </div>
                         <div className="mix-sheet-body">
+                            {!isMixBuiltinId(detail.id) && (!detail.imported || (!detail.publishedId && (!detail.author || detail.author === "酒馆工坊适配") && (
+                                ("entries" in detail && detail.entries?.some(entry => entry.source)) ||
+                                (detail.kind === "filter" && detail.rules.some(rule => rule.source))
+                            ))) ? (
+                                <button type="button" className="mix-pill-btn" style={{ marginBottom: 14 }}
+                                    onClick={() => {
+                                        // Old workshop packages were incorrectly sealed as other people's works.
+                                        const editable = detail.imported
+                                            ? { ...detail, imported: undefined, publishedId: undefined, publishedAt: undefined }
+                                            : detail;
+                                        if (detail.imported) { saveMixMaterial(editable); refresh(); }
+                                        setEditor({ kind: editable.kind, initial: editable }); setDetail(null);
+                                    }}>
+                                    {"entries" in detail && detail.entries ? "编辑预设条目" : detail.kind === "filter" ? "编辑正则条目" : "编辑材料"}
+                                </button>
+                            ) : null}
                             <div className="mix-author-row" style={{ marginTop: 2 }}>
                                 {detail.imported ? (
                                     <>

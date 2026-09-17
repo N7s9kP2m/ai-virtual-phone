@@ -1,5 +1,7 @@
 "use client";
 
+import { resizeComposerTextarea, useComposerAutosize } from "@/components/use-composer-autosize";
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -474,6 +476,7 @@ export function MascotChatRoom({ onBack, onDeleted }: MascotChatRoomProps) {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const scrollRef = useRef<HTMLDivElement | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    useComposerAutosize(textareaRef, inputText);
     const bottomScrollTimersRef = useRef<number[]>([]);
     const loadMoreRestoreRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
     const stickToBottomRef = useRef(true);
@@ -668,8 +671,7 @@ export function MascotChatRoom({ onBack, onDeleted }: MascotChatRoomProps) {
     const resizeTextarea = () => {
         const ta = textareaRef.current;
         if (!ta) return;
-        ta.style.height = "auto";
-        ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+        resizeComposerTextarea(ta);
     };
 
     const appendEmoji = (emoji: string) => {

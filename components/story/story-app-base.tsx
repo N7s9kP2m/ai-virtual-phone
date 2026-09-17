@@ -1,5 +1,7 @@
 "use client";
 
+import { resizeComposerTextarea, useComposerAutosize } from "@/components/use-composer-autosize";
+
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -139,8 +141,7 @@ function getStoryPreview(messages: StoryMessage[]): string {
 }
 
 function resizeStoryComposerTextarea(el: HTMLTextAreaElement) {
-  el.style.height = "auto";
-  el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  resizeComposerTextarea(el);
 }
 
 type StoryComposerAppendRequest = {
@@ -209,6 +210,7 @@ const StoryComposer = memo(function StoryComposer({
 }) {
   const [draft, setDraft] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  useComposerAutosize(textareaRef, draft);
   const lastAppendIdRef = useRef<number | null>(null);
 
   useEffect(() => {
