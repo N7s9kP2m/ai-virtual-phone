@@ -393,8 +393,8 @@ export function ChatSettingsPanel({
     const [offlineSummaryRetry, setOfflineSummaryRetry] = useState(session.offlineSummaryRetry !== false);
     const [collapseBilingualTranslation, setCollapseBilingualTranslation] = useState(session.collapseBilingualTranslation !== false);
     const [discardInvalidStickers, setDiscardInvalidStickers] = useState(session.discardInvalidStickers === true);
-    // 流式生成：按会话区分（线上/线下），存 ChatSession 字段，默认关
-    const [streamOnline, setStreamOnline] = useState(session.streamOnline === true);
+    // 流式生成：按会话区分（线上/线下），存 ChatSession 字段，线上默认开
+    const [streamOnline, setStreamOnline] = useState(session.streamOnline !== false);
     const [streamOffline, setStreamOffline] = useState(session.streamOffline === true);
     const defaultBilingualPrompt = session.isGroup ? DEFAULT_GROUP_CHAT_BILINGUAL_PROMPT : DEFAULT_CHAT_BILINGUAL_PROMPT;
     const defaultOfflineBilingualPrompt = session.isGroup ? DEFAULT_GROUP_OFFLINE_CHAT_BILINGUAL_PROMPT : DEFAULT_OFFLINE_CHAT_BILINGUAL_PROMPT;

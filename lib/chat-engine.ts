@@ -673,21 +673,36 @@ function parseSseEvents(buffer: string): { events: string[]; rest: string } {
 }
 
 function createStreamingTimestampStripper() {
-    const tailLength = 64;
     let pending = "";
+    const TIMESTAMP_OPENERS = ["(", "（", "[", "〔"];
     return {
         push(text: string): string {
             pending += text;
-            if (pending.length <= tailLength) return "";
-            let emitEnd = pending.length - tailLength;
-            const nearbyParen = pending.lastIndexOf("(", emitEnd);
-            if (nearbyParen >= Math.max(0, emitEnd - tailLength)) {
-                emitEnd = nearbyParen;
+            let lastOpener = -1;
+            for (const op of TIMESTAMP_OPENERS) {
+                const idx = pending.lastIndexOf(op);
+                if (idx > lastOpener) lastOpener = idx;
             }
-            if (emitEnd <= 0) return "";
-            const emit = pending.slice(0, emitEnd);
-            pending = pending.slice(emitEnd);
-            return stripHallucinatedTimestamps(emit);
+            if (lastOpener !== -1) {
+                const afterOpener = pending.slice(lastOpener);
+                const hasCloser = afterOpener.includes(")") || afterOpener.includes("）") || afterOpener.includes("]") || afterOpener.includes("〕") || afterOpener.includes("\n");
+                if (!hasCloser) {
+                    if (afterOpener.length > 25) {
+                        const emit = stripHallucinatedTimestamps(pending);
+                        pending = "";
+                        return emit;
+                    }
+                    if (lastOpener > 0) {
+                        const emit = stripHallucinatedTimestamps(pending.slice(0, lastOpener));
+                        pending = pending.slice(lastOpener);
+                        return emit;
+                    }
+                    return "";
+                }
+            }
+            const emit = stripHallucinatedTimestamps(pending);
+            pending = "";
+            return emit;
         },
         flush(): string {
             const emit = stripHallucinatedTimestamps(pending);
@@ -2601,6 +2616,7 @@ async function generateChatCompletionCore(
                     followUpCount: options?.followUpCount,
                     debugSessionId: session.id,
                     signal: options?.signal,
+                    skipTimestampStrip: true,
                 }, {
                     onDelta: (text) => callbacks?.onStreamDelta?.(text),
                     // 流式下 onReasoningDelta 是单段增量：累积后再喂 onReasoning（保持整段请求语义）

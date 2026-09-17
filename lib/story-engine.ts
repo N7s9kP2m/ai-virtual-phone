@@ -167,7 +167,7 @@ export async function generateStoryCompletion(
         llmMessages,
         regexes,
         { characterName: character.name, userName: userIdentity?.name ?? "用户" },
-        { skipOutputRegex: true, includeReasoning: true, appId: "story", appTags: ["story"], signal: options?.signal },
+        { skipOutputRegex: true, skipTimestampStrip: true, includeReasoning: true, appId: "story", appTags: ["story"], signal: options?.signal },
         {
           onDelta: async (text) => {
             accumulated += text;

@@ -1032,7 +1032,7 @@
    距 20→5.13vw、图标 58→14.87vw、dock 354→90.77vw），窄屏呈现与正常
    手机完全相同的比例观感，无多余留白；网格/dock 同源，天然对齐。
    ≥374px 不受影响。 */
-@media (max-width: 373px) and (hover: none) and (pointer: coarse) {
+@media (max-width: 375px) {
   .icon-grid,
   .dock {
     --slot-size: 16.92vw;
@@ -1056,7 +1056,7 @@
 
 /* ── Mobile responsive ── */
 
-@media (max-width: 500px) and (hover: none) and (pointer: coarse) {
+@media (max-width: 768px), (pointer: coarse) and (max-width: 1024px), (hover: none) and (max-width: 1024px) {
 
   /* 用户在设置里显式开启「显示系统状态栏」且运行时不在全屏时，控制器才会挂
      data-pwa-display-mode 标记（见 pwa-manifest-injector）：此时所有 App 共用系统
@@ -1174,6 +1174,81 @@
     width: var(--phone-screen-width);
   }
 }
+
+/* 移动端设备兜底类（配合 layout 初始注入，媒体查询误判时 100% 兜底） */
+html.is-mobile-device {
+  --phone-screen-width: 100vw;
+  --phone-screen-height: 100lvh;
+}
+
+html.is-mobile-device,
+html.is-mobile-device body {
+  overflow: hidden;
+  width: 100%;
+  height: 100lvh;
+  background: var(--c-page-body-bg);
+}
+
+html.is-mobile-device .app-root {
+  width: 100vw;
+  height: 100lvh;
+  padding: 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  overflow: hidden;
+  background: var(--c-page-body-bg);
+}
+
+html.is-mobile-device .phone-shell-wrap {
+  --phone-case-padding: 0px;
+  --phone-case-border-size: 0px;
+  --phone-frame-size: 0px;
+  --phone-screen-radius: 0px;
+  --phone-frame-radius: 0px;
+  --phone-case-radius: 0px;
+  width: var(--phone-screen-width);
+  margin-inline: 0;
+  gap: 0;
+  transform-origin: top left;
+  margin-top: calc(-1 * var(--status-bar-drop, 0px));
+  transform: translate3d(0, calc(-1 * var(--mobile-keyboard-lift, 0px)), 0);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+html.is-mobile-device .phone-shell-wrap .phone-case,
+html.is-mobile-device .phone-shell-wrap .phone-frame {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html.is-mobile-device .phone-shell-wrap .phone-case::before,
+html.is-mobile-device .phone-shell-wrap .phone-case::after,
+html.is-mobile-device .phone-shell-wrap .phone-frame::before,
+html.is-mobile-device .phone-shell-wrap .phone-frame::after {
+  display: none;
+}
+
+html.is-mobile-device .app-root.splash-root {
+  width: 100vw;
+  height: 100lvh;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: hidden;
+  background: var(--c-page-body-bg);
+}
+
+html.is-mobile-device .splash-shell-wrap {
+  width: var(--phone-screen-width);
+  transform-origin: top left;
+}
+
 
 .settings-main-menu,
 .appearance-main-menu {

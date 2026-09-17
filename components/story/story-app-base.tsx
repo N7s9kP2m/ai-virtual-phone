@@ -284,7 +284,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
   const [contextExcludedTagsDraft, setContextExcludedTagsDraft] = useState("");
   // 生成状态按会话记录：避免在 A 会话生成时切到 B 会话也显示"正在生成"
   const [generatingSessionIds, setGeneratingSessionIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [streamingDraft, setStreamingDraft] = useState<{ sessionId: string; text: string } | null>(null);
+  const [streamingDraft, setStreamingDraft] = useState<{ sessionId: string; text: string; reasoning?: string } | null>(null);
   // 抽屉滑动手势用 ref 而不是 state：手指按住时 touchmove 每帧都在触发，
   // 逐帧 setState 会让整个剧情页以事件频率重渲染（iOS 上拉到顶/底按住不动时
   // 表现为持续的重排/闪烁）
@@ -631,13 +631,22 @@ export function StoryApp({ onClose }: StoryAppProps) {
 
     try {
       const historyForGeneration = loadStoryMessages(sessionId);
+      let accReasoning = "";
+      let accText = "";
       const result = await generateStoryCompletion(characterId, historyForGeneration, {
         sessionFoldTags: currentSession?.foldTags,
         sessionContextExcludedTags: currentSession?.contextExcludedTags,
         signal: generationRun.controller.signal,
+        onReasoningDelta: (reasoningDelta) => {
+          if (!isCurrentGeneration()) return;
+          accReasoning += reasoningDelta;
+          setStreamingDraft({ sessionId, text: accText, reasoning: accReasoning });
+          scrollStoryToBottom();
+        },
         onDelta: (_delta, accumulated) => {
           if (!isCurrentGeneration()) return;
-          setStreamingDraft({ sessionId, text: accumulated });
+          accText = accumulated;
+          setStreamingDraft({ sessionId, text: accumulated, reasoning: accReasoning });
           scrollStoryToBottom();
         },
       });
@@ -1209,7 +1218,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
               </>
             )}
             {isGenerating ? (
-              streamingDraft?.sessionId === activeSessionId && streamingDraft.text ? (
+              streamingDraft?.sessionId === activeSessionId && (streamingDraft.text || streamingDraft.reasoning) ? (
                 <article className="story-row" data-role="assistant">
                   <div className="story-msg-head">
                     <div className="story-avatar-wrap">
@@ -1217,12 +1226,16 @@ export function StoryApp({ onClose }: StoryAppProps) {
                     </div>
                     <div className="story-msg-meta">
                       <span className="story-msg-name">{currentCharacter.name}</span>
-                      <span className="story-msg-time story-generating-head">正在书写…</span>
+                      <span className="story-msg-time story-generating-head">
+                        {streamingDraft.text ? "正在书写…" : "正在构思情节…"}
+                      </span>
                     </div>
                   </div>
                   <div className="story-bubble-wrap">
                     <div className="story-bubble story-streaming-bubble">
-                      <div className="story-streaming-text">{streamingDraft.text}</div>
+                      <div className={`story-streaming-text ${!streamingDraft.text ? "opacity-75 text-xs italic" : ""}`}>
+                        {streamingDraft.text || streamingDraft.reasoning}
+                      </div>
                       <span className="story-streaming-cursor" aria-hidden="true" />
                     </div>
                   </div>

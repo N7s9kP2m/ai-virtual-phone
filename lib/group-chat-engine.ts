@@ -849,6 +849,7 @@ export async function generateGroupChatCompletion(
                     appTags,
                     debugSessionId: session.id,
                     signal: options?.signal,
+                    skipTimestampStrip: true,
                 }, {
                     onDelta: (text) => callbacks?.onStreamDelta?.(text),
                     // 流式下 onReasoningDelta 是单段增量：累积后再喂 onReasoning（保持整段请求语义）
@@ -1024,6 +1025,7 @@ export async function generateGroupChatCompletion(
                             appTags,
                             debugSessionId: session.id,
                             signal: options?.signal,
+                            skipTimestampStrip: true,
                         }, {
                             onDelta: (text) => callbacks?.onStreamDelta?.(text),
                             // 流式下 onReasoningDelta 是单段增量：累积后再喂 onReasoning（保持整段请求语义）

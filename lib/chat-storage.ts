@@ -279,10 +279,10 @@ export function getMaxToolRounds(): number {
     return Math.max(1, Math.min(20, Math.round(raw)));
 }
 
-/** 会话是否开启线上流式生成（默认关；按会话独立控制，单聊/群聊都生效） */
+/** 会话是否开启线上流式生成（默认开；未显式关闭时默认开启，按会话独立控制，单聊/群聊都生效） */
 export function isSessionStreamingEnabled(session: Pick<ChatSession, "streamOnline" | "streamOffline"> | null | undefined, online: boolean): boolean {
     if (!session) return false;
-    return online ? session.streamOnline === true : session.streamOffline === true;
+    return online ? session.streamOnline !== false : session.streamOffline === true;
 }
 
 export const CHAT_APP_SETTINGS_UPDATED_EVENT = "chat-app-settings-updated";
