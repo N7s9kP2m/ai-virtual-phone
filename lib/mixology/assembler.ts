@@ -104,11 +104,15 @@ export function applyMixMacros(
  * 只叠了一件时正文直接跟在 # 段标题下面——那个段标题就是这一格在界面上的名字；
  * 叠了多件时每件多一层 ##，标题用材料自己的名字（吧台上的叠层本来就是按名字排的）。
  */
+function mixTextContent(m: MixTextMaterial): string {
+    if (Array.isArray(m.entries)) return m.entries.filter(e => e.enabled !== false && e.content.trim()).map(e => `### ${e.name}\n${e.content}`).join("\n\n");
+    return m.content?.trim() ?? "";
+}
 function stackBody(materials: MixMaterial[] | undefined, apply: (text: string) => string): string {
     const items = (materials ?? [])
         .map((m) => ({
             name: m.name?.trim() ?? "",
-            text: typeof (m as MixTextMaterial).content === "string" ? (m as MixTextMaterial).content.trim() : "",
+            text: mixTextContent(m as MixTextMaterial),
         }))
         .filter((item) => item.text);
     if (!items.length) return "";
@@ -263,7 +267,7 @@ export function assembleMixPrompt(input: MixAssembleInput): MixAssembledPrompt {
 
     const sections: (string | null)[] = [
         // 序言：配了才有，宏照常替换；没配整段消失（与其他段一致）
-        preface?.content.trim() ? apply(preface.content.trim()) : null,
+        preface && mixTextContent(preface) ? apply(mixTextContent(preface)) : null,
         withHung("base", baseText ? `# ${sectionTitle("base")}\n${baseText}` : null),
         // 角色资料：分框表单时每框一个 ##；一框式时作者写的正文（含自己的 ## 小节）原样进来。
         // 角色名两种模式都由卡名提供——一框式正文里作者自己写了 ## 角色名 才不重复补。

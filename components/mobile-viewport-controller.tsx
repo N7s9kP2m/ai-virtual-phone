@@ -34,8 +34,19 @@ export function MobileViewportController() {
         window.scrollTo(0, 0);
       }
       measure();
-      // Browser chrome and fullscreen metrics can settle after pageshow/visibilitychange.
-      timers = [100, 300, 1000].map(delay => window.setTimeout(scheduleMeasure, delay));
+      // Firefox can restore browser chrome and its viewport several seconds after resuming.
+      // Recheck even when it omits a resize event; don't reset scrolling during input/zoom.
+      timers = [100, 300, 1000, 2000, 3000, 5000].map(delay => window.setTimeout(() => {
+        if (document.visibilityState === "hidden") return;
+        const active = document.activeElement;
+        const editing = active instanceof HTMLElement &&
+          (active.matches("input, textarea, select") || active.isContentEditable);
+        if (!editing && (!viewport || Math.abs(viewport.scale - 1) <= 0.01) &&
+          (media.matches || root.classList.contains("is-mobile-device"))) {
+          window.scrollTo(0, 0);
+        }
+        scheduleMeasure();
+      }, delay));
     };
 
     recover();

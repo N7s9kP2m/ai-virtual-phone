@@ -27,7 +27,7 @@ export function applyMixFilterRules(
     if (!text || !rules?.length) return text;
     let out = text;
     for (const rule of rules) {
-        if (rule.mode !== mode || !rule.find) continue;
+        if (rule.enabled === false || rule.mode !== mode || !rule.find) continue;
         try {
             const rawFind = rule.find.trim();
             const slashMatch = rawFind.match(/^\/(.*)\/([a-z]*)$/s);

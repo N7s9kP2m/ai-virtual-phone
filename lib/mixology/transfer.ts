@@ -421,10 +421,12 @@ export function parseMixRecipeFile(text: string): { recipe: MixRecipe; materials
 }
 
 /**
- * 把解析出的配方包落库。配方与材料都打 imported——他人作品：
+ * 把解析出的配方包落库。默认作为他人作品标记 imported：
  * 配方可以换用材料（搭配可改），材料内容不可编辑、都不能发布，角色卡正文封存。
  * 材料按 id 落柜（槽位靠 id 引用）：柜里同 id 的自己原件保留沿用，
  * 已导入的同 id 覆盖更新；配方同理，自己的原杯不覆盖。
+ * 本地文件入口显式传 localFile，与单件材料文件导入一样允许编辑，剥离发布关联。
+ * 重新导入本地文件可修复此前被误标为 imported 的材料；资源集市入口仍保持限制。
  * 返回给用户看的结果说明。
  */
 /**
@@ -437,8 +439,9 @@ export function mixTrustedMechanismNames(materials: MixMaterial[]): string[] {
         .map((m) => m.name);
 }
 
-export function importMixRecipePack(pack: { recipe: MixRecipe; materials: MixMaterial[] }, author?: string): string {
+export function importMixRecipePack(pack: { recipe: MixRecipe; materials: MixMaterial[] }, author?: string, options?: { localFile?: boolean }): string {
     const signed = author?.trim() || undefined;
+    const localFile = options?.localFile === true;
     let kept = 0;
     for (const material of pack.materials) {
         const existing = getMixMaterial(material.id);
@@ -446,7 +449,8 @@ export function importMixRecipePack(pack: { recipe: MixRecipe; materials: MixMat
             kept += 1;
             continue;
         }
-        saveMixMaterial({ ...material, imported: true, author: signed || material.author });
+        saveMixMaterial({ ...material, imported: localFile ? undefined : true, author: signed || material.author,
+            ...(localFile ? { publishedId: undefined, publishedAt: undefined } : {}) });
     }
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(MIX_CABINET_UPDATED_EVENT));
     const keptNote = kept > 0 ? `（其中 ${kept} 味柜里已有你自己的原件，直接沿用）` : "";
@@ -456,9 +460,12 @@ export function importMixRecipePack(pack: { recipe: MixRecipe; materials: MixMat
     }
     saveMixRecipe({
         ...pack.recipe,
-        imported: true,
+        imported: localFile ? undefined : true,
+        ...(localFile ? { publishedId: undefined, publishedAt: undefined } : {}),
         author: signed || pack.recipe.author,
         createdAt: prior?.createdAt ?? pack.recipe.createdAt,
     });
-    return `配方「${pack.recipe.name}」已入吧台，${pack.materials.length} 味材料入柜${keptNote}——导入的作品不能发布，材料内容不可改，搭配可以自己换`;
+    return localFile
+        ? `配方「${pack.recipe.name}」已入吧台，${pack.materials.length} 味材料入柜${keptNote}，可在酒柜编辑`
+        : `配方「${pack.recipe.name}」已入吧台，${pack.materials.length} 味材料入柜${keptNote}——导入的作品不能发布，材料内容不可改，搭配可以自己换`;
 }

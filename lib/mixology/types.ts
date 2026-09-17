@@ -243,6 +243,8 @@ export const MIX_SECTION_TITLE_DEFAULTS: Record<MixSectionTitleKey, string> = {
     checklist: "输出格式检查",
 };
 
+export type MixPromptEntry = { id: string; name: string; content: string; enabled: boolean; source?: unknown };
+
 /** 纯文本类材料：序言 / 基底 / 风味 / 杯型 / 苦精 */
 export type MixTextMaterial = MixMaterialMeta & {
     kind: "preface" | "base" | "flavor" | "glass" | "strength" | "checklist";
@@ -250,6 +252,7 @@ export type MixTextMaterial = MixMaterialMeta & {
     /** 仅序言使用：自定义各分段标题（可用 {{char}}/{{user}} 宏），让整份提示词
      *  的措辞跟上序言定下的基调。缺省/留空的键用默认标题；交叉引用（如输出
      *  格式检查里提到的段名）会跟着换。 */
+    entries?: MixPromptEntry[];
     sectionTitles?: Partial<Record<MixSectionTitleKey, string>>;
 };
 
@@ -320,6 +323,9 @@ export function mixEncoreRenderHtml(material: MixEncoreMaterial): string {
 
 /** 滤网单条规则：正则查找 + 替换文本 + 作用模式 */
 export type MixFilterRule = {
+    name?: string;
+    enabled?: boolean;
+    source?: unknown;
     /** 查找（JS 正则，自动带 g 标志） */
     find: string;
     /** 替换文本（支持 $1 等捕获组引用；空串即删除） */
