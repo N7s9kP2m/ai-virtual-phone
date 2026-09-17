@@ -72,6 +72,13 @@ export function AccountGate({ children }: AccountGateProps) {
       setError("");
       return;
     }
+    if (result.error && /Supabase 环境变量未配置/.test(result.error)) {
+      setAccount(SELF_HOSTED_ACCOUNT);
+      saveActiveAccountId(SELF_HOSTED_ACCOUNT.id);
+      setStatus("ready");
+      setError("");
+      return;
+    }
     // 网络层失败（超时/断连/切网）：会话 cookie 还在，不应登出——给重试入口
     if (result.error === ACCOUNT_NETWORK_ERROR) {
       setStatus("unreachable");
