@@ -50,7 +50,7 @@ for (const api of [false, true]) {
     events.geometrychange(); flush();
     assert.equal(props['--mobile-viewport-height'], '800px');
   } else {
-    assert.equal(props['--mobile-viewport-height'], '400px', 'Stale fullscreen metrics reserve input space');
+    assert.equal(props['--mobile-viewport-height'], '480px', 'Stale fullscreen metrics reserve 40% for the keyboard');
     viewport.height = 460; events.focusout(); doc.activeElement = null; flush();
     assert.equal(props['--mobile-viewport-height'], '460px', 'Actual viewport height takes priority');
     viewport.height = 800;

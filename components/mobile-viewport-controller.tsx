@@ -42,7 +42,9 @@ export function MobileViewportController() {
       // Reserve space only for the three composers, after the keyboard animation settles.
       const fallback = composing && document.fullscreenElement && !keyboard && !shrunk &&
         !sawKeyboard && focusedAt > 0 && Date.now() - focusedAt >= 350;
-      if (fallback) height = Math.round(baselineHeight * 0.5);
+      // Leave 40% for an unreported keyboard; half-screen reservation leaves
+      // a large empty band above common Android keyboards.
+      if (fallback) height = Math.round(baselineHeight * 0.6);
       root.dataset.keyboardEstimated = fallback ? "true" : "false";
       if (height > 0) root.style.setProperty("--mobile-viewport-height", `${height}px`);
     };
