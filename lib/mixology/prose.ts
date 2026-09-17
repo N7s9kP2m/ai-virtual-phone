@@ -29,7 +29,18 @@ export function applyMixFilterRules(
     for (const rule of rules) {
         if (rule.mode !== mode || !rule.find) continue;
         try {
-            out = out.replace(new RegExp(rule.find, "g"), rule.replace ?? "");
+            const rawFind = rule.find.trim();
+            const slashMatch = rawFind.match(/^\/(.*)\/([a-z]*)$/s);
+            let re: RegExp;
+            if (slashMatch) {
+                const pattern = slashMatch[1];
+                let flags = slashMatch[2] || "";
+                if (!flags.includes("g")) flags += "g";
+                re = new RegExp(pattern, flags);
+            } else {
+                re = new RegExp(rawFind, "g");
+            }
+            out = out.replace(re, rule.replace ?? "");
         } catch {
             // 正则写错：这条作废，其余照跑
         }

@@ -237,6 +237,58 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
         setWheelIndex(best);
     }, []);
 
+    const chipRowRef = useRef<HTMLDivElement>(null);
+    const chipDragRef = useRef<{ isDown: boolean; startX: number; scrollLeft: number; hasMoved: boolean }>({
+        isDown: false,
+        startX: 0,
+        scrollLeft: 0,
+        hasMoved: false,
+    });
+
+    const handleChipRowWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+        if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY;
+        }
+    }, []);
+
+    const handleChipPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return;
+        const el = chipRowRef.current;
+        if (!el) return;
+        chipDragRef.current = {
+            isDown: true,
+            startX: e.clientX,
+            scrollLeft: el.scrollLeft,
+            hasMoved: false,
+        };
+        try { el.setPointerCapture(e.pointerId); } catch {}
+    }, []);
+
+    const handleChipPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!chipDragRef.current.isDown) return;
+        const el = chipRowRef.current;
+        if (!el) return;
+        const dx = e.clientX - chipDragRef.current.startX;
+        if (Math.abs(dx) > 4) {
+            chipDragRef.current.hasMoved = true;
+        }
+        el.scrollLeft = chipDragRef.current.scrollLeft - dx;
+    }, []);
+
+    const handleChipPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        chipDragRef.current.isDown = false;
+        try { chipRowRef.current?.releasePointerCapture(e.pointerId); } catch {}
+    }, []);
+
+    useEffect(() => {
+        const currentKind = tab === "menu" ? hallKind : cabinetKind;
+        if (!chipRowRef.current || !currentKind) return;
+        const activeBtn = chipRowRef.current.querySelector<HTMLElement>(`[data-kind="${currentKind}"]`);
+        if (activeBtn) {
+            activeBtn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        }
+    }, [tab, hallKind, cabinetKind]);
+
     const handleBrew = () => {
         if (!mixSlotEntries(barSlots, "character").length) {
             showToast("先给第一槽挑一张角色卡。");
@@ -644,7 +696,15 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
             {/* TAG 行在滚动容器之外：真固定，橡皮筋回弹只作用下面的内容区 */}
             {tab === "menu" || tab === "cabinet" ? (
                 <div className="mix-topbar">
-                    <div className="mix-chip-row">
+                    <div
+                        className="mix-chip-row"
+                        ref={chipRowRef}
+                        onWheel={handleChipRowWheel}
+                        onPointerDown={handleChipPointerDown}
+                        onPointerMove={handleChipPointerMove}
+                        onPointerUp={handleChipPointerUp}
+                        onPointerCancel={handleChipPointerUp}
+                    >
                         {MIX_SLOT_ORDER.map((kind) => {
                             const active = (tab === "menu" ? hallKind : cabinetKind) === kind;
                             return (
@@ -652,8 +712,13 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
                                     type="button"
                                     className="mix-chip"
                                     data-two-line="true"
+                                    data-kind={kind}
                                     data-active={active ? "true" : undefined}
-                                    onClick={() => (tab === "menu" ? setHallKind(kind) : setCabinetKind(kind))}
+                                    onClick={() => {
+                                        if (chipDragRef.current.hasMoved) return;
+                                        if (tab === "menu") setHallKind(kind);
+                                        else setCabinetKind(kind);
+                                    }}
                                     key={kind}
                                 >
                                     <span>{MIX_KIND_LABELS[kind]}</span>

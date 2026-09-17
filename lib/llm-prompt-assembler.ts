@@ -1500,6 +1500,8 @@ function shouldRunRule(
     if (typeof depth === "number") {
         if (rule.minDepth != null && rule.minDepth >= -1 && depth < rule.minDepth) return false;
         if (rule.maxDepth != null && rule.maxDepth >= 0 && depth > rule.maxDepth) return false;
+    } else if (rule.minDepth != null && rule.minDepth > 0) {
+        return false;
     }
 
     return true;
@@ -2216,8 +2218,11 @@ export function assembleGroupPromptPayload(input: GroupAssemblerInput): LLMMessa
     // Aggregate into final LLM messages
     const finalPayload: LLMMessage[] = [];
     blocks.forEach(b => {
+        // 酒馆标准规范：最新一条消息相对深度为 0，前一条为 1，依此类推。
+        // b.depth 内部排序基于 1-based，此处映射为酒馆 0-based 规范
+        const regexDepth = b.fromHistory && typeof b.depth === "number" ? Math.max(0, b.depth - 1) : undefined;
         const inputCtx: RegexContext = b.fromHistory
-            ? { depth: b.depth, activeTags, history: true }
+            ? { depth: regexDepth, activeTags, history: true }
             : { activeTags };
         const processedText = b.role === "tool" ? b.text : applyInputRegex(b.text, regexes, inputCtx);
         const carriesNativeToolData = b.role === "tool" || Boolean(b.toolCalls?.length);

@@ -680,6 +680,33 @@
           }
         }
 
+        .story-streaming-bubble {
+          position: relative;
+          min-height: 40px;
+          line-height: 1.68;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .story-streaming-text {
+          display: inline;
+          font-size: calc(14.5px * var(--app-text-scale, 1));
+          color: var(--c-story-text, #1e293b);
+        }
+        .story-streaming-cursor {
+          display: inline-block;
+          width: 2px;
+          height: 1.15em;
+          vertical-align: -0.15em;
+          margin-left: 2px;
+          background-color: var(--c-story-send-color, #10b981);
+          border-radius: 1px;
+          animation: story-cursor-blink 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes story-cursor-blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+
         /* === 富文本排版 (Typography Aesthetic) === */
         .story-richtext {
           font-size: calc(14px*var(--app-text-scale,1));

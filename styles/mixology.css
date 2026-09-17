@@ -205,6 +205,14 @@
     overflow-x: auto;
     padding: 12px 2px 4px;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    user-select: none;
+    cursor: grab;
+}
+
+.mix-chip-row:active {
+    cursor: grabbing;
 }
 
 

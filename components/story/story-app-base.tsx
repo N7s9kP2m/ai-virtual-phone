@@ -284,6 +284,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
   const [contextExcludedTagsDraft, setContextExcludedTagsDraft] = useState("");
   // 生成状态按会话记录：避免在 A 会话生成时切到 B 会话也显示"正在生成"
   const [generatingSessionIds, setGeneratingSessionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [streamingDraft, setStreamingDraft] = useState<{ sessionId: string; text: string } | null>(null);
   // 抽屉滑动手势用 ref 而不是 state：手指按住时 touchmove 每帧都在触发，
   // 逐帧 setState 会让整个剧情页以事件频率重渲染（iOS 上拉到顶/底按住不动时
   // 表现为持续的重排/闪烁）
@@ -623,6 +624,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
     setMessages((prev) => [...prev, userMessage]);
     setStorageVersion((value) => value + 1);
     markGenerating(sessionId, true);
+    setStreamingDraft({ sessionId, text: "" });
     const generationRun = createStoryGenerationRun(sessionId);
     const generationRunId = generationRun.runId;
     const isCurrentGeneration = () => mountedRef.current && isStoryGenerationRunActive(sessionId, generationRunId);
@@ -633,6 +635,11 @@ export function StoryApp({ onClose }: StoryAppProps) {
         sessionFoldTags: currentSession?.foldTags,
         sessionContextExcludedTags: currentSession?.contextExcludedTags,
         signal: generationRun.controller.signal,
+        onDelta: (_delta, accumulated) => {
+          if (!isCurrentGeneration()) return;
+          setStreamingDraft({ sessionId, text: accumulated });
+          scrollStoryToBottom();
+        },
       });
       if (!isCurrentGeneration()) return;
       const assistantMessage = pushStoryMessage({
@@ -677,6 +684,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
     } finally {
       if (finishStoryGenerationRun(sessionId, generationRunId)) {
         markGenerating(sessionId, false);
+        setStreamingDraft((prev) => (prev?.sessionId === sessionId ? null : prev));
       }
     }
   }
@@ -686,6 +694,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
     const cancelled = cancelStoryGenerationRun(activeSessionId);
     if (!cancelled && !isGenerating) return;
     markGenerating(activeSessionId, false);
+    setStreamingDraft(null);
   }
 
   function handleTouchStart(clientX: number) {
@@ -1200,10 +1209,30 @@ export function StoryApp({ onClose }: StoryAppProps) {
               </>
             )}
             {isGenerating ? (
-              <StoryGeneratingIndicator
-                characterName={currentCharacter.name}
-                avatar={currentCharacter.avatar || undefined}
-              />
+              streamingDraft?.sessionId === activeSessionId && streamingDraft.text ? (
+                <article className="story-row" data-role="assistant">
+                  <div className="story-msg-head">
+                    <div className="story-avatar-wrap">
+                      <Avatar src={currentCharacter.avatar || undefined} name={currentCharacter.name} size="md" />
+                    </div>
+                    <div className="story-msg-meta">
+                      <span className="story-msg-name">{currentCharacter.name}</span>
+                      <span className="story-msg-time story-generating-head">正在书写…</span>
+                    </div>
+                  </div>
+                  <div className="story-bubble-wrap">
+                    <div className="story-bubble story-streaming-bubble">
+                      <div className="story-streaming-text">{streamingDraft.text}</div>
+                      <span className="story-streaming-cursor" aria-hidden="true" />
+                    </div>
+                  </div>
+                </article>
+              ) : (
+                <StoryGeneratingIndicator
+                  characterName={currentCharacter.name}
+                  avatar={currentCharacter.avatar || undefined}
+                />
+              )
             ) : null}
           </div>
         </div>

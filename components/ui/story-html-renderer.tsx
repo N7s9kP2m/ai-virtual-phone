@@ -152,28 +152,31 @@ function splitNonFoldContent(text: string): Segment[] {
 
 // ── Markdown segment: marked + scoped HTML rendering ──
 
+/** Scope CSS selectors inside a CSS string to prevent leaking */
+function scopeCss(css: string, scopeClass: string): string {
+    return css.replace(
+        /([^{}@/][^{}]*)\{/g,
+        (ruleMatch: string, selector: string) => {
+            const trimmed = selector.trim();
+            if (!trimmed || trimmed.startsWith("@") || trimmed.startsWith("from") ||
+                trimmed.startsWith("to") || /^\d+%/.test(trimmed)) {
+                return ruleMatch;
+            }
+            const prefixed = trimmed.split(",").map(s => {
+                const st = s.trim();
+                if (!st) return st;
+                if (st === ":root") return `.${scopeClass}`;
+                return `.${scopeClass} ${st}`;
+            }).join(", ");
+            return `${prefixed} {`;
+        }
+    );
+}
+
 /** Scope CSS selectors inside <style> blocks to prevent leaking */
 function scopeStyles(html: string, scopeClass: string): string {
-    return html.replace(/<style>([\s\S]*?)<\/style>/gi, (_match, css: string) => {
-        // Prefix each CSS rule selector with the scope class
-        const scoped = css.replace(
-            /([^{}@/][^{}]*)\{/g,
-            (ruleMatch: string, selector: string) => {
-                const trimmed = selector.trim();
-                if (!trimmed || trimmed.startsWith("@") || trimmed.startsWith("from") ||
-                    trimmed.startsWith("to") || /^\d+%/.test(trimmed)) {
-                    return ruleMatch;
-                }
-                const prefixed = trimmed.split(",").map(s => {
-                    const st = s.trim();
-                    if (!st) return st;
-                    if (st === ":root") return `.${scopeClass}`;
-                    return `.${scopeClass} ${st}`;
-                }).join(", ");
-                return `${prefixed} {`;
-            }
-        );
-        return `<style>${scoped}</style>`;
+    return html.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_match, css: string) => {
+        return `<style>${scopeCss(css, scopeClass)}</style>`;
     });
 }
 
@@ -185,32 +188,50 @@ marked.setOptions({
 
 function MarkdownSegment({ content, scopeClass }: { content: string; scopeClass: string }) {
     const html = useMemo(() => {
-        // 0. Pre-process:
-        const preprocessed = content
+        // 0. Extract <style> blocks before marked or text preprocessing touches them.
+        // According to CommonMark specs, blank lines inside HTML blocks cause marked to prematurely
+        // close the block and treat subsequent CSS as markdown paragraphs (injecting <p>, <br>, etc.),
+        // which completely breaks browser CSS parsing and strips styles.
+        const styleBlocks: string[] = [];
+        const contentWithoutStyles = content.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_match, css: string) => {
+            const index = styleBlocks.length;
+            styleBlocks.push(scopeCss(css, scopeClass));
+            return `<!--__STORY_STYLE_BLOCK_${index}__-->`;
+        });
+
+        // 1. Pre-process:
+        const preprocessed = contentWithoutStyles
             .replace(/<\/?([a-zA-Z][a-zA-Z0-9_-]*)[^>]*>/g, (match, tag) =>  // strip all non-standard HTML tags (keep content)
                 STANDARD_TAGS.has(tag.toLowerCase()) ? match : "")
             .replace(/^[ \t]+/gm, "")                     // strip leading whitespace (prevents marked treating indented HTML as code blocks)
             .replace(/\n{3,}/g, "\n\n")                    // max 2 consecutive newlines
             .replace(/(>)\s*\n\n\s*(<)/g, "$1\n$2");       // remove blank lines between HTML tags
 
-        // 1. Markdown → HTML
+        // 2. Markdown → HTML
         const rawHtml = marked.parse(preprocessed, { async: false }) as string;
 
-        // 2. Strip only <script> tags (security), keep everything else as-is
+        // 3. Strip only <script> tags (security), keep everything else as-is
         //    No DOMPurify — regex-processed HTML is user-configured and trusted
         let clean = rawHtml.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 
-        // 2.5 单换行(<br>)后的行也做首行缩进：CSS text-indent 只作用于段落首行，
+        // 3.5 单换行(<br>)后的行也做首行缩进：CSS text-indent 只作用于段落首行，
         //     标准的 each-line 关键字浏览器均未实现，这里在每个 <br> 后插入
         //     2em 占位符模拟；折叠块/系统消息内由 CSS 把占位符宽度归零
         clean = clean.replace(/<br\s*\/?>/gi, '<br><span class="story-br-indent"></span>');
 
-        // 3. Scope <style> blocks to prevent CSS leaking
-        const scoped = scopeStyles(clean, scopeClass);
+        // 4. Restore scoped <style> blocks untouched by marked or <br> injections
+        let withStyles = clean.replace(/<!--__STORY_STYLE_BLOCK_(\d+)__-->/g, (_m, idx) => {
+            return `<style>${styleBlocks[Number(idx)] || ""}</style>`;
+        });
 
-        // 4. Clean up whitespace artifacts
-        const trimmed = scoped
-            .replace(/(<\/div>|<\/details>|<\/table>|<\/p>)\s*(<br\s*\/?>)\s*/gi, "$1")
+        // Fallback: if any style tags bypassed the initial extraction, scope them now
+        if (styleBlocks.length === 0 && /<style\b/i.test(withStyles)) {
+            withStyles = scopeStyles(withStyles, scopeClass);
+        }
+
+        // 5. Clean up whitespace artifacts
+        const trimmed = withStyles
+            .replace(/(<\/div>|<\/details>|<\/table>|<\/p>|<\/style>)\s*(<br\s*\/?>)\s*/gi, "$1")
             .replace(/(<br\s*\/?>){3,}/gi, "<br>")
             .replace(/<p>\s*<\/p>/gi, "")
             .replace(/<p>\s*(<br\s*\/?>)\s*<\/p>/gi, "");

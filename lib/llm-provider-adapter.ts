@@ -653,8 +653,17 @@ function buildGeminiRequest(
     } else if (enabled.has("max_tokens") && preset?.openai_max_tokens && preset.openai_max_tokens > 0) {
         generationConfig.maxOutputTokens = preset.openai_max_tokens;
     }
+    let geminiContents = compactGeminiContents(rest).filter(c => c.parts && c.parts.length > 0);
+    if (geminiContents.length === 0) {
+        const fallbackText = messages.find(m => m.role === "user")?.content
+            ? (typeof messages.find(m => m.role === "user")?.content === "string"
+                ? String(messages.find(m => m.role === "user")?.content)
+                : "请根据上述设定开始演进剧情。")
+            : (rest[rest.length - 1]?.content ? String(rest[rest.length - 1].content) : "请开始演进剧情。");
+        geminiContents = [{ role: "user", parts: [{ text: fallbackText || "继续" }] }];
+    }
     const body: Record<string, unknown> = {
-        contents: compactGeminiContents(rest),
+        contents: geminiContents,
         safetySettings: [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
