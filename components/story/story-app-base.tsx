@@ -609,6 +609,25 @@ export function StoryApp({ onClose }: StoryAppProps) {
     setStorageVersion((value) => value + 1);
   }
 
+  function createStreamingCallbacks(sessionId: string, isCurrentGeneration: () => boolean) {
+    let accReasoning = "";
+    let accText = "";
+    return {
+      onReasoningDelta: (reasoningDelta: string) => {
+        if (!isCurrentGeneration()) return;
+        accReasoning += reasoningDelta;
+        setStreamingDraft({ sessionId, text: accText, reasoning: accReasoning });
+        scrollStoryToBottom();
+      },
+      onDelta: (_delta: string, accumulated: string) => {
+        if (!isCurrentGeneration()) return;
+        accText = accumulated;
+        setStreamingDraft({ sessionId, text: accumulated, reasoning: accReasoning });
+        scrollStoryToBottom();
+      },
+    };
+  }
+
   async function handleSend(userTextInput: string) {
     const userText = userTextInput.trim();
     if (!activeSessionId || !userText || isGenerating) return;
@@ -631,24 +650,11 @@ export function StoryApp({ onClose }: StoryAppProps) {
 
     try {
       const historyForGeneration = loadStoryMessages(sessionId);
-      let accReasoning = "";
-      let accText = "";
       const result = await generateStoryCompletion(characterId, historyForGeneration, {
         sessionFoldTags: currentSession?.foldTags,
         sessionContextExcludedTags: currentSession?.contextExcludedTags,
         signal: generationRun.controller.signal,
-        onReasoningDelta: (reasoningDelta) => {
-          if (!isCurrentGeneration()) return;
-          accReasoning += reasoningDelta;
-          setStreamingDraft({ sessionId, text: accText, reasoning: accReasoning });
-          scrollStoryToBottom();
-        },
-        onDelta: (_delta, accumulated) => {
-          if (!isCurrentGeneration()) return;
-          accText = accumulated;
-          setStreamingDraft({ sessionId, text: accumulated, reasoning: accReasoning });
-          scrollStoryToBottom();
-        },
+        ...createStreamingCallbacks(sessionId, isCurrentGeneration),
       });
       if (!isCurrentGeneration()) return;
       const assistantMessage = pushStoryMessage({
@@ -830,7 +836,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
   }
   async function handleStoryRetry(msgId: string) {
     const msgIndex = messages.findIndex(m => m.id === msgId);
-    if (msgIndex === -1) return;
+    if (msgIndex === -1 || isGenerating) return;
     const retryMessage = messages[msgIndex];
     if (retryMessage.role !== "assistant" && retryMessage.role !== "user") return;
     const sessionId = activeSessionId;
@@ -850,6 +856,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
     autoBottomLockRef.current = true;
     requestAnimationFrame(() => scrollStoryToBottom());
     markGenerating(sessionId, true);
+    setStreamingDraft({ sessionId, text: "" });
     const generationRun = createStoryGenerationRun(sessionId);
     const generationRunId = generationRun.runId;
     const isCurrentGeneration = () => mountedRef.current && isStoryGenerationRunActive(sessionId, generationRunId);
@@ -858,6 +865,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
         sessionFoldTags: currentSession?.foldTags,
         sessionContextExcludedTags: currentSession?.contextExcludedTags,
         signal: generationRun.controller.signal,
+        ...createStreamingCallbacks(sessionId, isCurrentGeneration),
       });
       if (!isCurrentGeneration()) return;
       const assistantMessage = pushStoryMessage({
@@ -876,6 +884,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
     } finally {
       if (finishStoryGenerationRun(sessionId, generationRunId)) {
         markGenerating(sessionId, false);
+        setStreamingDraft((prev) => (prev?.sessionId === sessionId ? null : prev));
       }
     }
   }

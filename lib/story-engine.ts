@@ -178,15 +178,11 @@ export async function generateStoryCompletion(
       );
       rawOutput = streamResult.content;
     } catch (streamErr) {
-      console.warn("[StoryEngine] Stream request failed, falling back to standard request:", streamErr);
-      rawOutput = await sendLLMRequest(
-        apiConfig,
-        preset,
-        llmMessages,
-        regexes,
-        { characterName: character.name, userName: userIdentity?.name ?? "用户" },
-        { skipOutputRegex: true, includeReasoning: true, appId: "story", appTags: ["story"], signal: options?.signal },
-      );
+      if (options.signal?.aborted || (streamErr instanceof Error && streamErr.name === "AbortError")) {
+        throw streamErr;
+      }
+      const detail = streamErr instanceof Error ? streamErr.message : String(streamErr);
+      throw new ChatEngineError(`剧情流式生成失败：${detail}。请检查当前 API 是否支持流式响应。`);
     }
   } else {
     rawOutput = await sendLLMRequest(
