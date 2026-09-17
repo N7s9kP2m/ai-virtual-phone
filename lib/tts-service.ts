@@ -10,12 +10,18 @@ export type VoiceApiConfigResolved = VoiceApiConfig;
  * Returns null if no voice config is bound or found.
  */
 export function resolveVoiceConfig(characterId: string, appId?: ContentAppId): VoiceApiConfig | null {
+    const configs = loadVoiceConfigs();
+    if (!configs || configs.length === 0) return null;
+
     const bindings = loadBindingConfig();
     const slot = resolveBinding(bindings, characterId, appId ?? "chat");
-    if (!slot.voiceConfigId) return null;
+    if (slot.voiceConfigId) {
+        const found = configs.find(c => c.id === slot.voiceConfigId);
+        if (found) return found;
+    }
 
-    const configs = loadVoiceConfigs();
-    return configs.find(c => c.id === slot.voiceConfigId) || null;
+    // 智能保底：优先使用当前启用了 TTS 的有效配置（即用户刚配置好的方案）
+    return configs.find(c => c.enableTTS && (c.provider === "OpenAI" || Boolean(c.apiKey))) || configs.find(c => c.enableTTS) || configs[0];
 }
 
 /**
