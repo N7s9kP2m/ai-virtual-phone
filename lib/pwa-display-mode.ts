@@ -52,10 +52,20 @@ export function writePwaDisplayPreference(preference: PwaDisplayPreference) {
 /** Preserve the upstream default: mobile browsers request fullscreen unless Edge or explicitly disabled. */
 export function shouldRequestPwaFullscreen(): boolean {
   if (typeof document === "undefined" || typeof navigator === "undefined") return false;
+  // Focusing a field must not change the browser display mode during typing.
+  if (isPwaKeyboardField(document.activeElement)) return false;
   const preference = readPwaDisplayPreference(document.cookie);
   if (preference === "standalone") return false;
   if (preference === "fullscreen") return true;
   return !/Edg/i.test(navigator.userAgent);
+}
+
+export function isFirefoxAndroid(userAgent: string): boolean {
+  return /Android/i.test(userAgent) && /Firefox\//i.test(userAgent);
+}
+
+export function isPwaKeyboardField(element: Element | null): boolean {
+  return Boolean(element?.matches('textarea, input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]), [contenteditable]:not([contenteditable="false"])'));
 }
 
 export function getRuntimePwaDisplayMode(): RuntimePwaDisplayMode {
