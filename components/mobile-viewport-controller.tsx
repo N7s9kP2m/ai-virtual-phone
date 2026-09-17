@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, type PointerEvent } from "react";
 import { isPwaKeyboardField } from "@/lib/pwa-display-mode";
 
 /** Android browsers can restore a tab before updating their CSS viewport units. */
 export function MobileViewportController() {
+  const availableFraction = useRef(0.6);
+  const drag = useRef<{ pointerId: number; y: number; fraction: number } | null>(null);
   useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem("float-keyboard-available-fraction"));
+      if (saved >= 0.3 && saved <= 0.8) availableFraction.current = saved;
+    } catch { /* Storage may be disabled. */ }
     const root = document.documentElement;
     const media = window.matchMedia("(max-width: 768px), (pointer: coarse) and (max-width: 1024px), (hover: none) and (max-width: 1024px)");
     const viewport = window.visualViewport;
@@ -42,9 +48,8 @@ export function MobileViewportController() {
       // Reserve space only for the three composers, after the keyboard animation settles.
       const fallback = composing && document.fullscreenElement && !keyboard && !shrunk &&
         !sawKeyboard && focusedAt > 0 && Date.now() - focusedAt >= 350;
-      // Leave 40% for an unreported keyboard; half-screen reservation leaves
-      // a large empty band above common Android keyboards.
-      if (fallback) height = Math.round(baselineHeight * 0.6);
+      // Let users calibrate unreported keyboards instead of guessing their height.
+      if (fallback) height = Math.round(baselineHeight * availableFraction.current);
       root.dataset.keyboardEstimated = fallback ? "true" : "false";
       if (height > 0) root.style.setProperty("--mobile-viewport-height", `${height}px`);
     };
@@ -92,7 +97,7 @@ export function MobileViewportController() {
     const dismissEstimatedKeyboard = (event: Event) => {
       if (root.dataset.keyboardEstimated !== "true") return;
       const target = event.target;
-      if (target instanceof Element && !target.closest(".chat-input-bar, .story-composer, .mix-game-inputbar")) {
+      if (target instanceof Element && !target.closest(".chat-input-bar, .story-composer, .mix-game-inputbar, .keyboard-position-handle")) {
         const active = document.activeElement;
         if (active instanceof HTMLElement && isPwaKeyboardField(active)) active.blur();
       }
@@ -100,6 +105,7 @@ export function MobileViewportController() {
 
     recover();
     window.addEventListener("resize", scheduleMeasure);
+    window.addEventListener("float-keyboard-position-change", scheduleMeasure);
     window.addEventListener("orientationchange", recover);
     window.addEventListener("pageshow", recover);
     window.addEventListener("focus", recover);
@@ -120,6 +126,7 @@ export function MobileViewportController() {
       if (frame) window.cancelAnimationFrame(frame);
       timers.forEach(window.clearTimeout);
       window.removeEventListener("resize", scheduleMeasure);
+      window.removeEventListener("float-keyboard-position-change", scheduleMeasure);
       window.removeEventListener("orientationchange", recover);
       window.removeEventListener("pageshow", recover);
       window.removeEventListener("focus", recover);
@@ -134,5 +141,35 @@ export function MobileViewportController() {
       root.style.removeProperty("--mobile-viewport-height");
     };
   }, []);
-  return null;
+  const moveHandle = (event: PointerEvent<HTMLButtonElement>) => {
+    const start = drag.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    availableFraction.current = Math.max(0.3, Math.min(0.8,
+      start.fraction + (event.clientY - start.y) / window.innerHeight));
+    window.dispatchEvent(new Event("float-keyboard-position-change"));
+  };
+  const savePosition = () => {
+    if (!drag.current) return;
+    drag.current = null;
+    try { localStorage.setItem("float-keyboard-available-fraction", String(availableFraction.current)); } catch {}
+  };
+  return <>
+    <style>{`
+      .keyboard-position-handle { display: none; }
+      html[data-keyboard-estimated="true"] .keyboard-position-handle { display: block; }
+    `}</style>
+    <button type="button" className="keyboard-position-handle" aria-label="上下拖动调整输入区位置"
+      style={{ position: "fixed", top: "calc(var(--mobile-viewport-height) - 26px)", right: 8,
+        zIndex: 2147483647, height: 24, padding: "2px 8px", borderRadius: 12,
+        border: "1px solid #aaa6", background: "#f4f4f4", color: "#555", fontSize: 11,
+        touchAction: "none", userSelect: "none" }}
+      onPointerDown={event => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        drag.current = { pointerId: event.pointerId, y: event.clientY, fraction: availableFraction.current };
+      }}
+      onPointerMove={moveHandle} onPointerUp={savePosition}
+      onPointerCancel={savePosition} onLostPointerCapture={savePosition}
+    >↕ 调整位置</button>
+  </>;
 }

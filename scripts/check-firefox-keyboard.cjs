@@ -11,7 +11,8 @@ function load(file, context) {
   return exports;
 }
 for (const api of [false, true]) {
-  let now = 1000, cleanup;
+  let now = 1000, cleanup, savedFraction = '0.65';
+  const windowEvents = {};
   const events = {}, frames = [], timers = [];
   const props = {};
   const root = { dataset: {}, classList: { contains: () => true }, style: {
@@ -29,14 +30,18 @@ for (const api of [false, true]) {
     matchMedia: () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }),
     requestAnimationFrame: f => (frames.push(f), frames.length), cancelAnimationFrame: () => {},
     setTimeout: (f, delay) => (timers.push({f, delay}), timers.length), clearTimeout: () => {},
-    scrollTo: () => {}, addEventListener: () => {}, removeEventListener: () => {} };
+    scrollTo: () => {}, addEventListener: (k, f) => windowEvents[k] = f, removeEventListener: () => {},
+    dispatchEvent: e => windowEvents[e.type]?.() };
   const display = load('lib/pwa-display-mode.ts', { document: doc, navigator: nav });
   const controller = load('components/mobile-viewport-controller.tsx', {
     document: doc, navigator: nav, window: win, Date: {now: () => now},
-    require: id => id === 'react' ? { useEffect: f => cleanup = f() } : display
+    Event: class { constructor(type) { this.type = type; } },
+    localStorage: { getItem: () => savedFraction, setItem: (key, value) => savedFraction = value },
+    require: id => id === 'react' ? { useEffect: f => cleanup = f(), useRef: value => ({ current: value }) } :
+      id === 'react/jsx-runtime' ? { jsx: (type, props) => ({type, props}), jsxs: (type, props) => ({type, props}) } : display
   });
   const flush = () => { while (frames.length) frames.shift()(); };
-  controller.MobileViewportController();
+  const view = controller.MobileViewportController();
   assert.equal(props['--mobile-viewport-height'], '800px');
   doc.activeElement = field;
   events.focusin(); now += 400;
@@ -50,7 +55,14 @@ for (const api of [false, true]) {
     events.geometrychange(); flush();
     assert.equal(props['--mobile-viewport-height'], '800px');
   } else {
-    assert.equal(props['--mobile-viewport-height'], '480px', 'Stale fullscreen metrics reserve 40% for the keyboard');
+    assert.equal(props['--mobile-viewport-height'], '520px', 'Unreported keyboards use the saved calibration');
+    const handle = view.props.children[1].props;
+    handle.onPointerDown({ pointerId: 1, clientY: 500, preventDefault() {}, currentTarget: { setPointerCapture() {} } });
+    handle.onPointerMove({ pointerId: 1, clientY: 580 }); flush();
+    assert.equal(props['--mobile-viewport-height'], '600px', 'Dragging moves the shared input boundary');
+    handle.onPointerUp();
+    assert.equal(savedFraction, '0.75', 'Calibration persists');
+    assert.equal(doc.activeElement, field, 'Dragging keeps keyboard input focused');
     viewport.height = 460; events.focusout(); doc.activeElement = null; flush();
     assert.equal(props['--mobile-viewport-height'], '460px', 'Actual viewport height takes priority');
     viewport.height = 800;
