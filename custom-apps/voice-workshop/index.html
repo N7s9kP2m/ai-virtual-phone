@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AI 声音克隆与音色工坊</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(26, 34, 53, 0.85);
+      --border: rgba(255, 255, 255, 0.12);
+      --border-focus: #a855f7;
+      --primary: #a855f7;
+      --primary-hover: #9333ea;
+      --accent: #38bdf8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 0%, #2e1065 0%, #090d16 75%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 12px 60px 12px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+    }
+
+    /* 顶部导航与状态 */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .app-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-icon {
+      font-size: 24px;
+    }
+
+    .brand-text h1 {
+      font-size: 17px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #c084fc 0%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.2;
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      cursor: pointer;
+    }
+
+    .status-pill.error {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #f87171;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .btn-icon {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* 选项卡切换 */
+    .tab-bar {
+      display: flex;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      text-align: center;
+      padding: 8px 4px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.35);
+    }
+
+    /* 卡片容器 */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(8px);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    /* 表单控件 */
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--primary);
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 64px;
+      line-height: 1.5;
+    }
+
+    /* 按钮组 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(168, 85, 247, 0.4);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    /* 手机端录音组件 */
+    .recorder-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 2px dashed rgba(168, 85, 247, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .record-btn-circle {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #ef4444;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+      transition: all 0.2s;
+      border: none;
+      margin-bottom: 8px;
+    }
+
+    .record-btn-circle.recording {
+      animation: pulseRecord 1s infinite alternate;
+      background: #dc2626;
+    }
+
+    @keyframes pulseRecord {
+      from { transform: scale(1); box-shadow: 0 0 10px #ef4444; }
+      to { transform: scale(1.12); box-shadow: 0 0 25px #ef4444; }
+    }
+
+    .record-tip {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* 音色列表卡片 */
+    .voice-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .voice-item {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .voice-item.is-default {
+      border-color: #a855f7;
+      background: rgba(168, 85, 247, 0.1);
+    }
+
+    .voice-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .voice-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-def {
+      background: rgba(168, 85, 247, 0.25);
+      color: #d8b4fe;
+      border: 1px solid rgba(168, 85, 247, 0.5);
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .voice-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .voice-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-sm {
+      padding: 5px 9px;
+      font-size: 11px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* 弹窗遮罩 */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 1000;
+    }
+
+    .modal-box {
+      background: #1e293b;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .modal-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 12px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 9999;
+      display: none;
+      animation: fadeIn 0.2s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translate(-50%, 10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- 顶部状态栏 -->
+  <div class="top-bar">
+    <div class="app-brand">
+      <span class="brand-icon">🎙️</span>
+      <div class="brand-text">
+        <h1>音色工坊</h1>
+        <p>AI 零样本克隆 & 语音控制台</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="status-pill" id="connPill" title="点击修改电脑服务IP">
+        <span class="status-dot"></span>
+        <span id="connText">检查中...</span>
+      </div>
+      <button class="btn-icon" id="btnSettings" title="设置电脑服务IP">⚙️</button>
+    </div>
+  </div>
+
+  <!-- 选项卡导航 -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="voices">📁 音色库</button>
+    <button class="tab-btn" data-tab="clone">🎙️ 克隆声音</button>
+    <button class="tab-btn" data-tab="synth">🎧 试听调速</button>
+  </div>
+
+  <!-- 视图 1：音色库 -->
+  <div class="tab-content" id="tab-voices">
+    <div class="card">
+      <div class="card-title">
+        <span>🌟 电脑已建档音色</span>
+        <span style="font-size: 11px; font-weight: normal; color: var(--accent); margin-left: auto;" id="voiceTotalTip">加载中...</span>
+      </div>
+      <div class="voice-list" id="voiceListContainer">
+        <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 20px;">正在连接电脑音色工坊...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 视图 2：克隆新音色 -->
+  <div class="tab-content" id="tab-clone" style="display: none;">
+    <div class="card">
+      <div class="card-title">
+        <span>🎙️ 快速录音或上传音频</span>
+      </div>
+
+      <!-- 手机直接录音 -->
+      <div class="recorder-box">
+        <button class="record-btn-circle" id="btnRecord">🎙️</button>
+        <div style="font-size: 13px; font-weight: 700; color: #f8fafc; margin-bottom: 2px;" id="recordStatus">点击麦克风开始录音</div>
+        <div class="record-tip" id="recordTimer">建议清晰录制 5~15 秒语音（推荐朗读下方台词）</div>
+        <audio id="recordedAudioPreview" controls style="display: none; width: 100%; margin-top: 10px;"></audio>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">或选择手机本地音频文件 (.wav / .mp3)</label>
+        <input type="file" id="uploadFileInput" accept="audio/*" class="form-input" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">新音色名称（如：学姐音、流萤等）</label>
+        <input type="text" id="cloneNameInput" placeholder="给克隆的声音起个专属名字" class="form-input" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">参考音频台词（必须与音频内容完全一致！）</label>
+        <textarea id="cloneRefTextInput" class="form-textarea" placeholder="例如：你说现在到底是你梦见了我还是我梦见了你呢，不过我都很开心超开心的那种。"></textarea>
+      </div>
+
+      <button class="btn btn-primary" id="btnStartClone">🚀 一键发送给电脑克隆学习</button>
+    </div>
+  </div>
+
+  <!-- 视图 3：在线合成与试听 -->
+  <div class="tab-content" id="tab-synth" style="display: none;">
+    <div class="card">
+      <div class="card-title">
+        <span>🎧 在线生成与语速调节</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">选择发音音色</label>
+        <select id="synthVoiceSelect" class="form-select">
+          <option value="">加载中...</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <label class="form-label">发音语速 (Speed)</label>
+          <span style="font-size: 11px; color: var(--accent); font-weight: 700;" id="speedVal">0.85×</span>
+        </div>
+        <input type="range" id="synthSpeedRange" min="0.6" max="1.3" step="0.05" value="0.85" style="width: 100%; accent-color: var(--primary);" />
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-top: 2px;">
+          <span>0.6x 舒缓</span>
+          <span>0.85x 黄金黄金播音</span>
+          <span>1.3x 快速</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">试听文本</label>
+        <textarea id="synthTextInput" class="form-textarea" placeholder="输入你想让角色说的话...">你好呀，我是你的专属小手机语音助手，在手机上直接控制我感觉怎么样呢？</textarea>
+      </div>
+
+      <button class="btn btn-primary" id="btnDoSynth">▶️ 生成并播放语音</button>
+      <audio id="synthAudioPlayer" controls style="display: none; width: 100%; margin-top: 14px;"></audio>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗：修改电脑 IP -->
+<div class="modal-overlay" id="ipModal" style="display: none;">
+  <div class="modal-box">
+    <div class="modal-title">⚙️ 配置电脑音色工坊地址</div>
+    <div class="form-group">
+      <label class="form-label">电脑服务地址 (含端口 8191)</label>
+      <input type="text" id="serverIpInput" class="form-input" placeholder="http://192.168.31.188:8191" />
+      <p style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">确保手机与电脑连在同一个 WiFi 局域网下</p>
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 16px;">
+      <button class="btn btn-secondary" id="btnCancelIp" style="flex: 1;">取消</button>
+      <button class="btn btn-primary" id="btnSaveIp" style="flex: 1;">保存并连接</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toastMsg"></div>
+
+<script>
+(function(){
+  var STORAGE_KEY_URL = "float_voice_workshop_url";
+  // 默认电脑 IP 地址
+  var DEFAULT_SERVER = "http://192.168.31.188:8191";
+
+  function getServerUrl() {
+    return (localStorage.getItem(STORAGE_KEY_URL) || DEFAULT_SERVER).replace(/\/+$/, "");
+  }
+
+  function setServerUrl(url) {
+    localStorage.setItem(STORAGE_KEY_URL, url);
+  }
+
+  var connPill = document.getElementById("connPill");
+  var connText = document.getElementById("connText");
+  var ipModal = document.getElementById("ipModal");
+  var serverIpInput = document.getElementById("serverIpInput");
+  var toastMsg = document.getElementById("toastMsg");
+
+  function showToast(msg) {
+    if (window.floatApp && typeof window.floatApp.toast === "function") {
+      window.floatApp.toast(msg);
+      return;
+    }
+    toastMsg.textContent = msg;
+    toastMsg.style.display = "block";
+    clearTimeout(window._tTimer);
+    window._tTimer = setTimeout(function(){ toastMsg.style.display = "none"; }, 2500);
+  }
+
+  // 选项卡切换
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+      document.querySelectorAll(".tab-content").forEach(function(c){ c.style.display = "none"; });
+      btn.classList.add("active");
+      var tabId = "tab-" + btn.getAttribute("data-tab");
+      var target = document.getElementById(tabId);
+      if (target) target.style.display = "block";
+      if (btn.getAttribute("data-tab") === "voices") loadVoices();
+    });
+  });
+
+  // 弹窗逻辑
+  document.getElementById("btnSettings").addEventListener("click", function(){
+    serverIpInput.value = getServerUrl();
+    ipModal.style.display = "flex";
+  });
+  connPill.addEventListener("click", function(){
+    serverIpInput.value = getServerUrl();
+    ipModal.style.display = "flex";
+  });
+  document.getElementById("btnCancelIp").addEventListener("click", function(){
+    ipModal.style.display = "none";
+  });
+  document.getElementById("btnSaveIp").addEventListener("click", function(){
+    var val = serverIpInput.value.trim();
+    if (!val) val = DEFAULT_SERVER;
+    setServerUrl(val);
+    ipModal.style.display = "none";
+    showToast("已更新电脑地址");
+    checkHealth();
+  });
+
+  // 检查电脑 8191 连通性
+  async function checkHealth() {
+    var url = getServerUrl();
+    connText.textContent = "连接中...";
+    connPill.className = "status-pill";
+
+    try {
+      var resp = await fetch(url + "/api/voices", { signal: AbortSignal.timeout(4000) });
+      if (resp.ok) {
+        connPill.className = "status-pill";
+        connText.textContent = "已连接电脑 (8191)";
+        loadVoices();
+      } else {
+        throw new Error("HTTP " + resp.status);
+      }
+    } catch(e) {
+      connPill.className = "status-pill error";
+      connText.textContent = "未连接 (点此设置IP)";
+    }
+  }
+
+  // 加载音色列表
+  async function loadVoices() {
+    var url = getServerUrl();
+    var container = document.getElementById("voiceListContainer");
+    var totalTip = document.getElementById("voiceTotalTip");
+    var synthSelect = document.getElementById("synthVoiceSelect");
+
+    try {
+      var resp = await fetch(url + "/api/voices");
+      var data = await resp.json();
+      var voices = data.voices || [];
+      var defName = data.default_voice || "";
+
+      totalTip.textContent = "共 " + voices.length + " 个音色";
+      container.innerHTML = "";
+      synthSelect.innerHTML = "";
+
+      if (voices.length === 0) {
+        container.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:20px; font-size:12px;">暂无音色，快去切换到【克隆声音】录制一个吧！</div>';
+        return;
+      }
+
+      voices.forEach(function(v){
+        var isDef = (v.name === defName);
+        var item = document.createElement("div");
+        item.className = "voice-item" + (isDef ? " is-default" : "");
+
+        var opt = document.createElement("option");
+        opt.value = v.name;
+        opt.textContent = (v.type === "preset" ? "[预置] " : "[克隆] ") + v.name + (isDef ? " (当前默认)" : "");
+        if (isDef) opt.selected = true;
+        synthSelect.appendChild(opt);
+
+        item.innerHTML = 
+          '<div class="voice-meta">' +
+            '<div class="voice-name">' +
+              '<span>' + escapeHtml(v.name) + '</span>' +
+              (isDef ? '<span class="badge-def">全局默认</span>' : '') +
+            '</div>' +
+            '<div class="voice-sub">' + (v.ref_text ? escapeHtml(v.ref_text) : "内置高音质声音") + '</div>' +
+          '</div>' +
+          '<div class="voice-actions">' +
+            (isDef ? '' : '<button class="btn-sm btn-primary btn-set-def" data-name="' + escapeHtml(v.name) + '">设为默认</button>') +
+            '<button class="btn-sm btn-secondary btn-preview-v" data-name="' + escapeHtml(v.name) + '">试听</button>' +
+          '</div>';
+
+        container.appendChild(item);
+      });
+
+      // 绑定设为默认
+      container.querySelectorAll(".btn-set-def").forEach(function(b){
+        b.addEventListener("click", async function(){
+          var name = b.getAttribute("data-name");
+          await setDefaultVoice(name);
+        });
+      });
+
+      // 绑定直接试听
+      container.querySelectorAll(".btn-preview-v").forEach(function(b){
+        b.addEventListener("click", function(){
+          var name = b.getAttribute("data-name");
+          synthSelect.value = name;
+          document.querySelector("[data-tab='synth']").click();
+          document.getElementById("btnDoSynth").click();
+        });
+      });
+
+    } catch(err) {
+      container.innerHTML = '<div style="text-align:center; color:#f87171; padding:20px; font-size:12px;">连接电脑失败，请点击右上角确认电脑 IP</div>';
+    }
+  }
+
+  async function setDefaultVoice(name) {
+    var url = getServerUrl();
+    try {
+      var resp = await fetch(url + "/api/voices/default", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name })
+      });
+      if (resp.ok) {
+        showToast("已将【" + name + "】设为小手机全局默认音色！");
+        loadVoices();
+      } else {
+        throw new Error("保存失败");
+      }
+    } catch(e) {
+      showToast("设置失败：" + e.message);
+    }
+  }
+
+  // 手机端麦克风录音 MediaRecorder
+  var mediaRecorder = null;
+  var audioChunks = [];
+  var recordedBlob = null;
+  var recordTimerInterval = null;
+  var recordSeconds = 0;
+  var btnRecord = document.getElementById("btnRecord");
+  var recordStatus = document.getElementById("recordStatus");
+  var recordTimer = document.getElementById("recordTimer");
+  var recordedAudioPreview = document.getElementById("recordedAudioPreview");
+
+  btnRecord.addEventListener("click", async function(){
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      // 停止录音
+      mediaRecorder.stop();
+      btnRecord.classList.remove("recording");
+      recordStatus.textContent = "录制完成！可回放试听";
+      clearInterval(recordTimerInterval);
+      return;
+    }
+
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorder.ondataavailable = function(e){
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = function(){
+        recordedBlob = new Blob(audioChunks, { type: "audio/wav" });
+        var audioUrl = URL.createObjectURL(recordedBlob);
+        recordedAudioPreview.src = audioUrl;
+        recordedAudioPreview.style.display = "block";
+        recordedAudioPreview.play();
+        showToast("录制完成，已为你自动回放！");
+      };
+
+      mediaRecorder.start();
+      btnRecord.classList.add("recording");
+      recordStatus.textContent = "正在录音中... 点击可停止";
+      recordSeconds = 0;
+      recordTimerInterval = setInterval(function(){
+        recordSeconds++;
+        recordTimer.textContent = "已录制 " + recordSeconds + " 秒（建议 5~15 秒）";
+      }, 1000);
+
+    } catch(err) {
+      showToast("无法调起手机麦克风：" + err.message);
+    }
+  });
+
+  // 开始克隆新音色
+  document.getElementById("btnStartClone").addEventListener("click", async function(){
+    var name = document.getElementById("cloneNameInput").value.trim();
+    var refText = document.getElementById("cloneRefTextInput").value.trim();
+    var fileInput = document.getElementById("uploadFileInput");
+
+    if (!name) { showToast("请填写音色名称"); return; }
+    if (!refText) { showToast("请填写参考台词"); return; }
+
+    var audioFile = recordedBlob;
+    if (!audioFile && fileInput.files.length > 0) {
+      audioFile = fileInput.files[0];
+    }
+    if (!audioFile) {
+      showToast("请先录音或选择本地音频文件");
+      return;
+    }
+
+    var btn = document.getElementById("btnStartClone");
+    btn.disabled = true;
+    btn.textContent = "正在向电脑上传学习中...";
+
+    try {
+      var url = getServerUrl();
+      var formData = new FormData();
+      formData.append("name", name);
+      formData.append("ref_text", refText);
+      formData.append("audio", audioFile, "sample.wav");
+
+      var resp = await fetch(url + "/api/voices/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      var res = await resp.json();
+      if (resp.ok) {
+        showToast("🎉 音色【" + name + "】克隆成功！已自动入库");
+        document.getElementById("cloneNameInput").value = "";
+        document.getElementById("cloneRefTextInput").value = "";
+        recordedAudioPreview.style.display = "none";
+        recordedBlob = null;
+        document.querySelector("[data-tab='voices']").click();
+      } else {
+        throw new Error(res.message || "上传失败");
+      }
+    } catch(e) {
+      showToast("克隆失败：" + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🚀 一键发送给电脑克隆学习";
+    }
+  });
+
+  // 在线合成调速与播放
+  var synthSpeedRange = document.getElementById("synthSpeedRange");
+  var speedVal = document.getElementById("speedVal");
+  synthSpeedRange.addEventListener("input", function(){
+    speedVal.textContent = parseFloat(synthSpeedRange.value).toFixed(2) + "×";
+  });
+
+  document.getElementById("btnDoSynth").addEventListener("click", async function(){
+    var voice = document.getElementById("synthVoiceSelect").value;
+    var text = document.getElementById("synthTextInput").value.trim();
+    var speed = parseFloat(synthSpeedRange.value);
+
+    if (!voice) { showToast("请先选择音色"); return; }
+    if (!text) { showToast("请输入试听台词"); return; }
+
+    var btn = document.getElementById("btnDoSynth");
+    var player = document.getElementById("synthAudioPlayer");
+    btn.disabled = true;
+    btn.textContent = "AI 正在去噪推理生成中...";
+
+    try {
+      var url = getServerUrl();
+      var resp = await fetch(url + "/api/tts/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: voice, text: text, speed: speed })
+      });
+
+      if (!resp.ok) {
+        var errJson = await resp.json().catch(function(){ return {}; });
+        throw new Error(errJson.message || ("HTTP " + resp.status));
+      }
+
+      var blob = await resp.blob();
+      var audioUrl = URL.createObjectURL(blob);
+      player.src = audioUrl;
+      player.style.display = "block";
+      player.play();
+      showToast("✅ 合成成功，正在播放！");
+    } catch(e) {
+      showToast("合成失败：" + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "▶️ 生成并播放语音";
+    }
+  });
+
+  function escapeHtml(str) {
+    return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // 初始化自检
+  checkHealth();
+})();
+</script>
+</body>
+</html>
