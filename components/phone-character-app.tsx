@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { marked } from "marked";
 import type { Character } from "@/lib/character-types";
 import {
   createCharacter,
@@ -14,7 +15,6 @@ import {
   saveBackgroundItems,
   type CharacterImportData,
 
-  CHAR_BLOCKED_FIELDS,
 } from "@/lib/character-storage";
 import { generateBriefPersonaText, isBriefPersonaStale } from "@/lib/brief-persona";
 import { generateSupportingCharacters, materializeSupportingCharacter, type GeneratedSupportingCharacter } from "@/lib/npc-generator";
@@ -37,7 +37,10 @@ import { RelationLinkDialog, RelationPairSheet } from "@/components/character/re
 import { loadMomentsConfig, saveMomentsConfig } from "@/lib/moments-storage";
 import type { CanvasBgItem } from "@/lib/character-types";
 import { PageShell } from "@/components/ui/page-shell";
-import { ConfirmDialog } from "@/components/ui/modal";
+import { ConfirmDialog, ContentDialog } from "@/components/ui/modal";
+import { loadWorldBooks, parseWorldBookFromJson, saveWorldBooks } from "@/lib/settings-storage";
+import { mountCharacterWorldBook } from "@/lib/character-card-mount";
+import type { WorldBookConfig } from "@/lib/settings-types";
 import { AlertCircle, History } from "lucide-react";
 import {
   backupCharacterVersion,
@@ -727,6 +730,10 @@ function CharListView({
   const [pendingBgType, setPendingBgType] = useState<CanvasBgItem['type'] | null>(null);
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number }>({ x: -9999, y: -9999 });
   const [importError, setImportError] = useState<string | null>(null);
+  const pendingLoreRef = useRef<{ characterId: string; book?: WorldBookConfig; linkedName?: string } | null>(null);
+  const [importedBook, setImportedBook] = useState<WorldBookConfig | null>(null);
+  const [mountTargetId, setMountTargetId] = useState("");
+  const [importedCharacter, setImportedCharacter] = useState<CharacterImportData | null>(null);
   const placementActive = !!(pendingPlacementChar || pendingBgType);
 
   useEffect(() => {
@@ -746,6 +753,7 @@ function CharListView({
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         setPendingBgType(null);
+        pendingLoreRef.current = null;
         onClearPendingPlacement();
       }
     }
@@ -770,7 +778,12 @@ function CharListView({
         };
         onUpdateChars([...characters, charWithCoords]);
         onPlacementDone(charWithCoords);
-        onNotice("已放置角色");
+        const lore = pendingLoreRef.current;
+        if (lore?.characterId === charWithCoords.id) {
+          const mounted = mountCharacterWorldBook(charWithCoords.id, lore.book, lore.linkedName);
+          pendingLoreRef.current = null;
+          onNotice(mounted ? "已放置角色并挂载世界书" : lore.linkedName ? `已放置角色，未找到世界书「${lore.linkedName}」，请另行导入并挂载` : "已放置角色");
+        } else onNotice("已放置角色");
       } else if (pendingBgType) {
         const newId = `bg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
         const newItem: CanvasBgItem = {
@@ -924,42 +937,29 @@ function CharListView({
   }
 
   async function handleImportFile(file: File) {
-    const styleIdx = pendingStyleRef.current;
     try {
-      if (file.type === "application/json" || file.name.endsWith(".json")) {
+      let data: CharacterImportData | null;
+      const filename = file.name.toLowerCase();
+      if (file.type === "application/json" || filename.endsWith(".json")) {
         const text = await file.text();
-        const data = parseCharacterFromJson(text);
-        if (!data) return onNotice("解析失败，请检查文件格式");
-        const c = createCharacter(data);
-        c.polaroidStyle = styleIdx;
-        onStartCharPlacement(c);
-        onNotice("点击画布放置角色");
-      } else if (file.type === "image/png" || file.name.endsWith(".png")) {
-        const buffer = await file.arrayBuffer();
-        const data = parseCharacterFromPng(buffer);
-        if (!data) return onNotice("未在 PNG 中找到角色数据");
-        let avatar = "";
-        try {
-          avatar = await fileToDataUrl(file);
-        } catch (e) {
-          console.error("Failed to read image file data", e);
+        data = parseCharacterFromJson(text);
+        if (!data) {
+          const book = parseWorldBookFromJson(text);
+          if (!book) return setImportError("无法识别文件，请选择角色卡或世界书 JSON。");
+          if (book.name === "导入的世界书") book.name = file.name.replace(/\.json$/i, "");
+          setMountTargetId(worldCharacters[0]?.id ?? characters[0]?.id ?? "");
+          setImportedBook(book);
+          return;
         }
-        if (!avatar && typeof data.avatar === "string" && data.avatar.trim() !== "") {
-          avatar = data.avatar;
-        }
-        const c = createCharacter({ ...data, avatar });
-        c.polaroidStyle = styleIdx;
-        onStartCharPlacement(c);
-        onNotice("点击画布放置角色");
-      } else {
-        onNotice("请选择 .json 或 .png 文件");
-      }
-    } catch (e) {
-      if (e instanceof Error && e.message === CHAR_BLOCKED_FIELDS) {
-        setImportError("不支持包含开场白、场景或示例对话的角色卡");
-      } else {
-        onNotice("解析失败，请检查文件格式");
-      }
+      } else if (file.type === "image/png" || filename.endsWith(".png")) {
+        data = parseCharacterFromPng(await file.arrayBuffer());
+        if (!data) return setImportError("未在 PNG 中找到有效的角色卡数据。");
+        data.avatar = await fileToDataUrl(file);
+      } else return setImportError("请选择角色卡 PNG 或角色卡／世界书 JSON。");
+      setImportedCharacter(data);
+    } catch (error) {
+      console.error("Character/world book import failed", error);
+      setImportError("导入失败，请检查文件是否完整、格式是否正确。");
     }
   }
 
@@ -1410,6 +1410,83 @@ function CharListView({
         </div>
       )}
 
+      {importedCharacter && (
+        <ContentDialog
+          title="角色卡导入预览"
+          overlayClassName="char-import-overlay"
+          dialogClassName="char-import-dialog"
+          confirmLabel="放置角色"
+          onCancel={() => setImportedCharacter(null)}
+          onConfirm={() => {
+            if (!importedCharacter.name.trim()) return onNotice("请填写角色名");
+            if (!importedCharacter.persona.trim() && !importedCharacter.personality?.trim()) return onNotice("未识别到角色资料，请补充人设后再导入");
+            const { embeddedWorldBook, linkedWorldBookName, ...characterData } = importedCharacter;
+            const c = createCharacter(characterData);
+            c.polaroidStyle = pendingStyleRef.current;
+            pendingLoreRef.current = { characterId: c.id, book: embeddedWorldBook, linkedName: linkedWorldBookName };
+            onStartCharPlacement(c);
+            setImportedCharacter(null);
+            onNotice(embeddedWorldBook ? "点击画布放置角色，世界书会一起挂载" : "点击画布放置角色");
+          }}
+        >
+          <div className="flex items-center gap-3 mb-3">
+            {importedCharacter.avatar
+              ? <img src={importedCharacter.avatar} alt="角色头像" className="w-16 h-16 rounded-lg object-cover" />
+              : <div className="w-16 h-16 rounded-lg flex items-center justify-center bg-black/10 text-xs">暂无头像</div>}
+            <label className="ui-btn ui-btn-outline cursor-pointer">
+              选择头像
+              <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                const file = e.currentTarget.files?.[0];
+                if (!file) return;
+                const source = importedCharacter;
+                try {
+                  const avatar = await fileToDataUrl(file);
+                  setImportedCharacter(current => current?.importedCard === source.importedCard && current?.name === source.name ? { ...current, avatar } : current);
+                } catch { onNotice("头像读取失败，请重试"); }
+              }} />
+            </label>
+          </div>
+          <label className="block mb-3">角色名
+            <input className="ui-input mt-1 w-full" value={importedCharacter.name} onChange={e => setImportedCharacter({ ...importedCharacter, name: e.target.value })} />
+          </label>
+          <label className="block mb-3">完整人设
+            <textarea className="ui-input mt-1 w-full" rows={8} value={importedCharacter.persona} placeholder="未识别到人设，请补充角色资料" onChange={e => setImportedCharacter({ ...importedCharacter, persona: e.target.value })} />
+          </label>
+          <label className="block mb-3">性格
+            <textarea className="ui-input mt-1 w-full" rows={2} value={importedCharacter.personality ?? ""} onChange={e => setImportedCharacter({ ...importedCharacter, personality: e.target.value })} />
+          </label>
+          {importedCharacter.embeddedWorldBook && <p className="text-sm">世界书「{importedCharacter.embeddedWorldBook.name}」· {importedCharacter.embeddedWorldBook.entries.length} 条，导入后自动挂载。</p>}
+          {importedCharacter.linkedWorldBookName && !importedCharacter.embeddedWorldBook && <p className="text-sm">关联世界书：{importedCharacter.linkedWorldBookName}</p>}
+        </ContentDialog>
+      )}
+
+      {importedBook && (
+        <ContentDialog
+          title="识别到世界书"
+          overlayClassName="char-import-overlay"
+          dialogClassName="char-import-dialog"
+          confirmLabel="导入"
+          onCancel={() => setImportedBook(null)}
+          onConfirm={() => {
+            try {
+              saveWorldBooks([...loadWorldBooks(), importedBook]);
+              if (mountTargetId) mountCharacterWorldBook(mountTargetId, importedBook);
+              onNotice(mountTargetId ? "已导入世界书并挂载到角色" : "已导入世界书");
+              setImportedBook(null);
+            } catch { setImportError("世界书保存失败，请重试。"); }
+          }}
+        >
+          <p>{importedBook.name} · {importedBook.entries.length} 条条目</p>
+          <label className="block mt-3">
+            挂载角色
+            <select className="ui-input mt-2 w-full" value={mountTargetId} onChange={e => setMountTargetId(e.target.value)}>
+              <option value="">仅导入世界书</option>
+              {characters.map(c => <option key={c.id} value={c.id}>{c.name || "未命名角色"}</option>)}
+            </select>
+          </label>
+        </ContentDialog>
+      )}
+
       {importError && (
         <ConfirmDialog
           title="导入失败"
@@ -1834,6 +1911,44 @@ function DraggableNode({
 }
 
 
+function preprocessPersonaText(raw: string): string {
+  let s = raw.trim();
+  // 1. 移除首尾的伪 XML 根标签，如 <楼尽雪设定> ... </楼尽雪设定> 或 <角色设定> ... </角色设定>
+  s = s.replace(/^<([^\n>]+)>\s*\n?/, "");
+  s = s.replace(/\n?\s*<\/[^\n>]+>$/, "");
+
+  // 2. 如果正文中有单独成行的非标准 HTML 尖括号标签（如 <日常活动地点>、<外貌>），转为带有小节标题的 Markdown
+  s = s.replace(/^<([^\n<>]+)>\s*$/gm, (_m, tag) => {
+    if (/^(div|p|span|hr|br|b|i|strong|em|details|summary)$/i.test(tag.trim())) return _m;
+    return `\n### ${tag.trim()}\n`;
+  });
+  s = s.replace(/^<\/([^\n<>]+)>\s*$/gm, "");
+
+  // 3. 将箭头引导的行（如 ->、-->、=>、→、➜、➤）或特殊项目符号（•、●、▪、◆、◇）映射为标准的 Markdown 列表项 - 
+  s = s.replace(/^(\s*)(?:->|-->|=>|==>|→|➜|➤|►|▶|⇨|⇒|•|●|▪|▫|◆|◇)\s*/gm, "$1- ");
+
+  // 4. 常见酒馆人物卡排版：缩进开头的子属性条目，若非已有列表标记，自动补充 - 列表标记
+  s = s.replace(/^([ \t]{2,}|\t)(?![-*+#>])(\S.*)$/gm, "$1- $2");
+
+  // 5. 列表项结束后如果紧接着非列表项普通文本，确保有空行隔开，避免普通文本被吞进 <li> 中
+  s = s.replace(/(^|\n)([-*+]\s+[^\n]+)\n(?=[^\s\-*+#\n<])/g, "$1$2\n\n");
+
+  return s;
+}
+
+function CharArchivePersonaViewer({ text }: { text: string }) {
+  const html = useMemo(() => {
+    if (!text || !text.trim()) return "";
+    const preprocessed = preprocessPersonaText(text);
+    const parsed = marked.parse(preprocessed, { async: false, breaks: true, gfm: true }) as string;
+    return parsed.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  }, [text]);
+
+  if (!html) return <p className="char-archive-p whitespace-pre-wrap break-words">{text}</p>;
+
+  return <div className="char-archive-rendered" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
 // ── 绝密档案视图（详情页面） ─────────────────────────────────────────
 
 function CharArchiveView({
@@ -2116,7 +2231,7 @@ function CharArchiveView({
   }
 
   // Helper limits
-  const personaText = persona || "NO DATA AVAILABLE.";
+  const personaText = persona || "暂无人设，点击右上角编辑补充角色资料。";
   const timeZoneOptions = getCharacterTimeZoneOptions(timeZone || timeZoneSearch);
   const timeZoneQuery = timeZoneSearch.trim().toLowerCase();
   const matchedTimeZoneOptions = timeZoneQuery
@@ -2474,7 +2589,7 @@ function CharArchiveView({
                 }}
               />
             ) : (
-              <p className="char-archive-p whitespace-pre-wrap break-words">{personaText}</p>
+              <CharArchivePersonaViewer text={personaText} />
             )}
           </div>
 
@@ -2497,7 +2612,7 @@ function CharArchiveView({
                   }}
                 />
               ) : (
-                <p className="char-archive-p whitespace-pre-wrap break-words">{personality}</p>
+                <CharArchivePersonaViewer text={personality} />
               )}
             </div>
           )}

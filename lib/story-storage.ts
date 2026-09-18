@@ -87,6 +87,15 @@ function isPreferredStorySession(candidate: StorySession, current: StorySession)
   return candidate.id.localeCompare(current.id) > 0;
 }
 
+function sanitizeFoldTags(foldTags: string | undefined): string | undefined {
+  if (!foldTags) return undefined;
+  const filtered = foldTags
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t && t.toLowerCase() !== "summary");
+  return filtered.length > 0 ? filtered.join(",") : undefined;
+}
+
 function normalizeStorySessions(sessions: StorySession[]): { items: StorySession[]; changed: boolean } {
   const normalized: StorySession[] = [];
   const indexByCharacter = new Map<string, number>();
@@ -99,9 +108,12 @@ function normalizeStorySessions(sessions: StorySession[]): { items: StorySession
       changed = true;
       continue;
     }
-    const item = id === session.id && characterId === session.characterId
+    const sanitizedFoldTags = sanitizeFoldTags(session.foldTags);
+    const foldTagsChanged = sanitizedFoldTags !== session.foldTags;
+    const item = id === session.id && characterId === session.characterId && !foldTagsChanged
       ? session
-      : { ...session, id, characterId };
+      : { ...session, id, characterId, foldTags: sanitizedFoldTags };
+    if (foldTagsChanged) changed = true;
     const existingIndex = indexByCharacter.get(characterId);
     if (existingIndex === undefined) {
       indexByCharacter.set(characterId, normalized.length);

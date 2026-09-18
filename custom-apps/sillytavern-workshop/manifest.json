@@ -1,10 +1,10 @@
 {
   "sdkVersion": "1.0",
   "id": "sillytavern.workshop",
-  "name": "酒馆工坊",
-  "version": "1.1.0",
+  "name": "特调工坊",
+  "version": "1.3.0",
   "author": "Antigravity",
-  "description": "专为 Float 小手机打造的酒馆生态工坊：支持酒馆角色卡、剧情预设、以及正则脚本/ZIP包的1:1深度适配与全版本兼容无空行样式打包。",
+  "description": "专为 Float 小手机打造的独家特调制作工坊：支持将酒馆角色卡、预设总纲与正则美化包一键合成为特调配方包，或独立提取角色、预设材料与滤网。",
   "icon": "icon.png",
   "entry": "index.html",
   "permissions": [

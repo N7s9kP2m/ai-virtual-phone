@@ -2,7 +2,7 @@ import type { RegexConfig } from "./settings-types";
 import { applyAllOutputRegex, applyAllReasoningRegex } from "./llm-prompt-assembler";
 import type { MacroEngine } from "./macro-engine";
 
-export const STORY_PARSER_VERSION = 7;
+export const STORY_PARSER_VERSION = 8;
 
 export type ParsedStoryResponse = {
   rawText: string;

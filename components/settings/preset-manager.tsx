@@ -6,7 +6,7 @@ import {
     loadPresets,
     savePresets,
     createPreset,
-    parsePresetFromJson,
+    loadRegexes,
     resetBuiltinPreset,
     UNSUPPORTED_IMPORT_FORMAT,
 } from "@/lib/settings-storage";
@@ -27,7 +27,8 @@ import { buildCustomAppTagGroups, findTagGroupForTags, flattenTagGroups } from "
 import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom-app-storage";
 import type { InstalledCustomApp } from "@/lib/custom-app-types";
 import { SettingsContext } from "../phone-settings-app";
-import { BottomSheet, ConfirmDialog, TextExpandModal } from "@/components/ui/modal";
+import { BottomSheet, ConfirmDialog, ContentDialog, TextExpandModal } from "@/components/ui/modal";
+import { exportPresetWithRegexes, installPresetImport, readPresetImportFiles, type PresetImportBundle } from "@/lib/preset-import";
 import { SwipeActionRow, useSwipeActions } from "@/components/ui/swipe-actions";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
 import { useTouchSort } from "@/lib/use-touch-sort";
@@ -294,6 +295,8 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
     const [parameterPickerOpen, setParameterPickerOpen] = useState(false);
     const [expandTarget, setExpandTarget] = useState<{ identifier: string; field: string } | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
+    const [pendingImport, setPendingImport] = useState<PresetImportBundle | null>(null);
+    const [importBusy, setImportBusy] = useState(false);
     const [customApps, setCustomApps] = useState<InstalledCustomApp[]>([]);
     // ── 多选模式（右滑选中 / 批量操作 / 多选拖拽） ──
     const [selectMode, setSelectMode] = useState(false);
@@ -1031,38 +1034,18 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
         setViewMode("list");
     };
 
-    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const text = event.target?.result as string;
-                const fallbackName = file.name.replace(/\.json$/i, '');
-                const parsed = parsePresetFromJson(text, fallbackName);
-                if (parsed) {
-                    persist([parsed, ...presets]);
-                } else {
-                    setImportError("无法解析预设文件，格式不正确。");
-                }
-            } catch (e) {
-                if (e instanceof Error && e.message === UNSUPPORTED_IMPORT_FORMAT) {
-                    setImportError("不支持该预设格式");
-                } else {
-                    setImportError("无法解析预设文件，格式不正确。");
-                }
-            }
-        };
-        reader.readAsText(file);
-        // Reset file input
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.currentTarget.files ?? []);
+        e.currentTarget.value = "";
+        if (!files.length || importBusy) return;
+        setImportBusy(true);
+        try { setPendingImport(await readPresetImportFiles(files)); }
+        catch (error) { setImportError(error instanceof Error ? error.message : "无法解析预设文件，格式不正确。"); }
+        finally { setImportBusy(false); }
     };
 
     const handleExport = async (preset: PresetConfig) => {
-        const exportData = { ...preset };
+        const exportData = exportPresetWithRegexes(preset);
         const { downloadFile } = await import("@/lib/download-utils");
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
         await downloadFile(blob, `${preset.name || "preset"}.json`);
@@ -1072,7 +1055,8 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
 
     return (
         <div ref={containerRef} className="flex flex-col gap-[24px] h-full">
-            <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImport} />
+            <input type="file" accept=".json,.zip,application/json,application/zip" multiple className="hidden" ref={fileInputRef} onChange={handleImport} />
+            {importBusy && <p className="menu-desc">正在识别预设与正则…</p>}
             <input type="file" accept=".json" className="hidden" ref={entryFileInputRef} onChange={handleEntryImportFile} />
             {viewMode === "list" ? (
                 <>
@@ -1125,7 +1109,7 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
                                         <span className="menu-desc truncate">{preset.description || `包含 ${preset.prompts?.length || 0} 个设定条目`}</span>
                                     </div>
                                     <div className="flex items-center justify-between gap-2">
-                                        <span className="menu-desc ts-12">条目 {preset.prompts?.length || 0}</span>
+                                        <span className="menu-desc ts-12">条目 {preset.prompts?.length || 0}{preset.linkedRegexIds?.length ? ` · 正则组 ${preset.linkedRegexIds.length}` : ""}</span>
                                         <ChevronLeft size={16} style={{ transform: "rotate(180deg)", opacity: 0.4 }} />
                                     </div>
                                 </div>
@@ -1205,6 +1189,19 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
                                                 className="ui-textarea resize-none"
                                             />
                                         </div>
+
+                                        {!!preset.linkedRegexIds?.length && (
+                                            <div className="flex flex-col gap-2" data-ui="preset-linked-regexes">
+                                                <label className="menu-label ts-13 font-semibold">关联正则</label>
+                                                <p className="menu-desc">随此预设启用，可在正则管理中编辑规则。</p>
+                                                {preset.linkedRegexIds.map(id => (
+                                                    <div key={id} className="flex justify-between items-center gap-2">
+                                                        <span className="menu-desc truncate">{loadRegexes().find(group => group.id === id)?.name ?? "已删除的正则组"}</span>
+                                                        <button type="button" className="ui-btn ui-btn-ghost shrink-0" onClick={() => updatePreset(preset.id, { linkedRegexIds: preset.linkedRegexIds?.filter(item => item !== id) })}>解除关联</button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
 
                                         {/* Collapsible: 生成参数 */}
                                         <div className="ui-collapsible">
@@ -2017,6 +2014,54 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
                     onConfirm={() => deleteSelectedPrompts()}
                     onCancel={() => setConfirmDeleteSelected(false)}
                 />
+            )}
+
+            {pendingImport && (
+                <ContentDialog
+                    title="预设导入预览"
+                    overlayClassName="settings-import-overlay"
+                    dialogClassName="settings-import-dialog"
+                    confirmLabel="导入预设与正则"
+                    onCancel={() => setPendingImport(null)}
+                    onConfirm={() => {
+                        if (!pendingImport.preset.name.trim()) return;
+                        try {
+                            const preset = installPresetImport(pendingImport);
+                            setPresets(loadPresets());
+                            setEditingId(preset.id);
+                            setViewMode("detail");
+                            setPendingImport(null);
+                        } catch (error) {
+                            setPendingImport(null);
+                            setImportError(error instanceof Error ? error.message : "保存失败，请重试。");
+                        }
+                    }}
+                >
+                    <label className="block mb-3">预设名称
+                        <input className="ui-input mt-1 w-full" value={pendingImport.preset.name} onChange={e => setPendingImport({ ...pendingImport, preset: { ...pendingImport.preset, name: e.target.value } })} />
+                    </label>
+                    <p>{pendingImport.adapted ? "酒馆预设 · 已适配小手机" : "小手机预设"}</p>
+                    <p>{pendingImport.preset.prompts.length} 个提示词条目{pendingImport.adapted ? `，其中补齐 ${pendingImport.builtinCount} 个内置功能条目` : ""}。</p>
+                    <div className="mt-3 mb-3">
+                        <strong>附带正则</strong>
+                        {pendingImport.regexGroups.length ? <ul className="pl-4 mt-2">
+                            {pendingImport.regexGroups.map(group => <li key={group.id}>{group.name} · {group.rules.length} 条规则</li>)}
+                        </ul> : <p>没有内嵌正则。对应正则是单独文件时，可以与预设一起多选导入。</p>}
+                        {pendingImport.regexGroups.length > 0 && <p>正则组会存入正则管理，选择此预设时自动启用。</p>}
+                    </div>
+                    {pendingImport.notes.length > 0 && <ul className="pl-4 text-sm">
+                        {pendingImport.notes.map((note, index) => <li key={index}>{note}</li>)}
+                    </ul>}
+                    <details className="mt-3 text-sm">
+                        <summary>查看提示词顺序与开关</summary>
+                        <ol className="pl-5 mt-2">
+                            {(pendingImport.preset.prompt_order ?? []).map(item => {
+                                const prompt = pendingImport.preset.prompts.find(p => p.identifier === item.identifier);
+                                return <li key={item.identifier}>{prompt?.name ?? item.identifier} · {item.enabled ? "开启" : "关闭"}</li>;
+                            })}
+                        </ol>
+                    </details>
+                </ContentDialog>
             )}
 
             {importError && (

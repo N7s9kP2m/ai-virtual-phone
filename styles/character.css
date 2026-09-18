@@ -1575,3 +1575,65 @@
 
 /* 关系标签在编辑模式下可点（剪断关系） */
 .wt-line-label-editable { cursor: pointer; }
+
+
+/* --- Rendered Persona & Personality --- */
+.char-archive-rendered {
+  font-size: calc(11px * var(--app-text-scale, 1));
+  line-height: 1.65;
+  color: var(--c-text-title);
+  word-break: break-word;
+}
+.char-archive-rendered p {
+  margin: 0.35em 0;
+}
+.char-archive-rendered h1,
+.char-archive-rendered h2,
+.char-archive-rendered h3,
+.char-archive-rendered h4 {
+  font-size: calc(11.8px * var(--app-text-scale, 1));
+  font-weight: 700;
+  color: var(--c-text-title);
+  margin: 1.2em 0 0.4em 0;
+  padding-left: 6px;
+  border-left: 3px solid var(--c-text-title);
+  line-height: 1.35;
+  letter-spacing: 0.5px;
+}
+.char-archive-rendered h1:first-child,
+.char-archive-rendered h2:first-child,
+.char-archive-rendered h3:first-child {
+  margin-top: 0.2em;
+}
+.char-archive-rendered ul {
+  list-style: disc !important;
+  list-style-type: disc !important;
+  margin: 0.35em 0 0.55em 0;
+  padding-left: 18px !important;
+}
+.char-archive-rendered ol {
+  list-style: decimal !important;
+  list-style-type: decimal !important;
+  margin: 0.35em 0 0.55em 0;
+  padding-left: 18px !important;
+}
+.char-archive-rendered li {
+  display: list-item !important;
+  list-style-type: inherit !important;
+  margin: 0.3em 0;
+  line-height: 1.6;
+}
+.char-archive-rendered li::marker {
+  color: var(--c-text-title);
+  font-size: 0.9em;
+}
+.char-archive-rendered strong,
+.char-archive-rendered b {
+  font-weight: 700;
+  color: var(--c-text-title);
+}
+.char-archive-rendered hr {
+  border: none;
+  border-top: 1px dashed var(--c-panel-border, #ccc);
+  margin: 1em 0;
+}

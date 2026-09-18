@@ -14,11 +14,13 @@ import {
     type ShareIndexFolder,
 } from "./resource-hub-types";
 import { createCharacter, loadCharacters, parseCharacterFromJson, parseCharacterFromPng, saveCharacters } from "./character-storage";
+import { mountCharacterWorldBook } from "./character-card-mount";
 import {
-    loadPresets, savePresets, parsePresetFromJson,
+    loadPresets, savePresets,
     loadWorldBooks, saveWorldBooks, parseWorldBookFromJson,
     loadRegexes, saveRegexes, parseRegexFromJson,
 } from "./settings-storage";
+import { installPresetImport, parsePresetImportBundle } from "./preset-import";
 import { saveScheme } from "./css-scheme-storage";
 import { STATUS_REGION_SCHEME_TARGET } from "./chat-status-region";
 import { createOrGetSession, loadChatSessions, saveChatSessions } from "./chat-storage";
@@ -409,7 +411,7 @@ function bytesToPngDataUrl(buffer: ArrayBuffer): string {
 }
 
 /**
- * 解析器抛的是内部哨兵串（UNSUPPORTED_IMPORT_FORMAT / CHAR_BLOCKED_FIELDS），
+ * 解析器抛的是内部哨兵串（UNSUPPORTED_IMPORT_FORMAT），
  * 各管理页都会翻译成人话，集市原本直接甩给用户看，会显示成
  * 「导入失败：UNSUPPORTED_IMPORT_FORMAT」。
  */
@@ -419,7 +421,6 @@ function translateParseError<T>(run: () => T): T {
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (message === "UNSUPPORTED_IMPORT_FORMAT") throw new Error("不支持该文件的格式，请确认它是本应用导出的");
-        if (message === "CHAR_BLOCKED_FIELDS") throw new Error("不支持包含开场白、场景或示例对话的角色卡");
         throw err;
     }
 }
@@ -455,12 +456,12 @@ export async function importResourceHubFile(
     switch (destination) {
         case "preset": {
             const presetText = await fetchResourceHubText(source, path);
-            const preset = translateParseError(() => parsePresetFromJson(presetText, displayName));
-            if (!preset) throw new Error("预设解析失败，请确认文件是预设管理页导出的 JSON");
+            const bundle = translateParseError(() => parsePresetImportBundle(presetText, displayName));
+            if (!bundle) throw new Error("预设解析失败，请确认文件包含有效的预设条目");
             // 与各管理页一致：新导入的排在最前，别沉到长列表底部
-            savePresets([preset, ...loadPresets()]);
+            const preset = installPresetImport(bundle);
             dispatch("settings-presets-updated");
-            return `预设「${preset.name}」已导入`;
+            return `预设「${preset.name}」已导入${bundle.regexGroups.length ? `，已关联 ${bundle.regexGroups.length} 个正则组` : ""}`;
         }
         case "status_bar": {
             const statusText = await fetchResourceHubText(source, path);
@@ -503,9 +504,12 @@ export async function importResourceHubFile(
                 data = translateParseError(() => parseCharacterFromJson(charText));
             }
             if (!data) throw new Error("角色卡解析失败");
+            if (!data.persona.trim() && !data.personality?.trim()) throw new Error("未识别到角色资料，请从角色页导入并补充人设");
             if (!avatar && typeof data.avatar === "string" && data.avatar.trim()) avatar = data.avatar;
-            const character = createCharacter(avatar ? { ...data, avatar } : data);
+            const { embeddedWorldBook, linkedWorldBookName, ...characterData } = data;
+            const character = createCharacter(avatar ? { ...characterData, avatar } : characterData);
             saveCharacters([character, ...loadCharacters()]);
+            mountCharacterWorldBook(character.id, embeddedWorldBook, linkedWorldBookName);
             return `角色「${character.name}」已加入角色库`;
         }
         case "chat_session_css": {

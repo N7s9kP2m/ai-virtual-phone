@@ -25,6 +25,8 @@ export type WorldBookEntry = {
 
 export type WorldBookConfig = SettingItemMeta & {
     entries: WorldBookEntry[];
+    /** Retain source fields that the current activation engine does not use. */
+    originalData?: Record<string, unknown>;
 };
 
 // --- Preset ---
@@ -66,6 +68,8 @@ export type Prompt = {
 };
 
 export type PresetConfig = SettingItemMeta & {
+    /** Regex groups imported with this preset; resolved alongside manual regex bindings. */
+    linkedRegexIds?: string[];
     builtIn?: boolean;
     builtInVersion?: number;
     temperature: number;

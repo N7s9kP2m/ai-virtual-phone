@@ -50,6 +50,8 @@ export function ConfirmDialog({
 /* ── Content Dialog (center, custom body) ── */
 export type ContentDialogProps = {
   title: string;
+  overlayClassName?: string;
+  dialogClassName?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm: () => void;
@@ -59,6 +61,8 @@ export type ContentDialogProps = {
 
 export function ContentDialog({
   title,
+  overlayClassName,
+  dialogClassName,
   confirmLabel = "\u4FDD\u5B58",
   cancelLabel = "\u53D6\u6D88",
   onConfirm,
@@ -66,8 +70,8 @@ export function ContentDialog({
   children,
 }: ContentDialogProps) {
   return (
-    <div className="modal-overlay" data-ui="modal" onClick={onCancel}>
-      <div className="modal-dialog" data-ui="modal-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className={`modal-overlay ${overlayClassName ?? ""}`} data-ui="modal" onClick={onCancel}>
+      <div className={`modal-dialog ${dialogClassName ?? ""}`} data-ui="modal-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header" data-ui="modal-header">
           <h3 className="modal-title">{title}</h3>
         </div>

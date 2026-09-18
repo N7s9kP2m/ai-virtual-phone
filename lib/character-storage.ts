@@ -1,19 +1,12 @@
 import type { Character, CanvasBgItem } from "./character-types";
 import { normalizeTimeZone } from "./character-time";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
-
-/** Thrown when a character card contains fields unsupported by the current schema */
-export const CHAR_BLOCKED_FIELDS = "CHAR_BLOCKED_FIELDS";
+import { getCharacterBinding, loadBindingConfig, loadWorldBooks, parseWorldBookFromJson } from "./settings-storage";
+import type { WorldBookConfig } from "./settings-types";
+import { readCharacterCardProfile } from "./character-card-profile";
 
 const STORAGE_KEY = "ai_phone_characters_v1";
 const BG_ITEMS_STORAGE_KEY = "ai_phone_bg_items_v1";
-const UNSUPPORTED_CHARACTER_IMPORT_FIELDS = [
-  "greeting",
-  "first_mes",
-  "alternate_greetings",
-  "mes_example",
-  "scenario",
-] as const;
 registerKvMigration(STORAGE_KEY);
 registerKvMigration(BG_ITEMS_STORAGE_KEY);
 
@@ -41,6 +34,17 @@ export function loadCharacters(): Character[] {
     let needsSave = false;
     const chars = parsed.filter(isValidCharacter).map((raw: Character) => {
       const char = { ...raw } as Character & { greeting?: unknown; alternate_greetings?: unknown };
+      if (char.importedCard && char.importProfileVersion !== 1) {
+        if (!char.persona?.trim()) {
+          const config = loadBindingConfig();
+          const ids = getCharacterBinding(config, char.id).defaults.worldBookIds ?? [];
+          const profile = readCharacterCardProfile(char.importedCard, loadWorldBooks().filter(book => ids.includes(book.id)));
+          if (profile.persona) char.persona = profile.persona;
+          if (!char.personality?.trim() && profile.personality) char.personality = profile.personality;
+        }
+        char.importProfileVersion = 1;
+        needsSave = true;
+      }
       if ("greeting" in char) {
         delete char.greeting;
         needsSave = true;
@@ -143,6 +147,7 @@ export function exportCharacterAsJson(char: Character): void {
     schema_version: "1.0",
     name: char.name,
     description: char.persona,
+    importedCard: char.importedCard,
     personality: char.personality || "",
     avatar: char.avatar ?? "none",
     tags: char.tags || [],
@@ -163,13 +168,14 @@ export function exportCharacterAsJson(char: Character): void {
 export type CharacterImportData = Omit<
   Character,
   "id" | "createdAt" | "updatedAt"
->;
+> & { embeddedWorldBook?: WorldBookConfig; linkedWorldBookName?: string };
 
 export function parseCharacterFromJson(
   text: string
 ): CharacterImportData | null {
   try {
     const obj = JSON.parse(text) as Record<string, unknown>;
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
 
     // Helper: validate avatar — only accept data-URLs and http(s) URLs
     function validAvatar(v: unknown): string | null {
@@ -180,13 +186,23 @@ export function parseCharacterFromJson(
       return null;
     }
 
-    const src = (obj.schema === "ai_phone_character" && typeof obj.data === "object" && obj.data !== null)
+    const src = ((obj.schema === "ai_phone_character" || obj.spec === "chara_card_v2" || obj.spec === "chara_card_v3") && typeof obj.data === "object" && obj.data !== null && !Array.isArray(obj.data))
       ? obj.data as Record<string, unknown>
       : obj;
 
-    if (UNSUPPORTED_CHARACTER_IMPORT_FIELDS.some((field) => field in src || field in obj)) {
-      throw new Error(CHAR_BLOCKED_FIELDS);
+    const profile = readCharacterCardProfile(obj);
+    if (!profile.name || !("description" in src || "persona" in src || "personality" in src || "character_book" in src)) return null;
+    const preserved = src.importedCard && typeof src.importedCard === "object" ? src.importedCard as Record<string, unknown> : undefined;
+    const preservedData = preserved?.data && typeof preserved.data === "object" ? preserved.data as Record<string, unknown> : preserved;
+    const extensionsSource = src.extensions ?? preservedData?.extensions;
+    const extensions = extensionsSource && typeof extensionsSource === "object" ? extensionsSource as Record<string, unknown> : {};
+    if (!profile.persona && typeof extensions.world === "string") {
+      profile.persona = readCharacterCardProfile(obj, loadWorldBooks().filter(book => book.name === extensions.world)).persona;
     }
+    const bookSource = src.character_book ?? obj.character_book ?? preservedData?.character_book;
+    const embeddedWorldBook = bookSource == null ? undefined : parseWorldBookFromJson(JSON.stringify(bookSource));
+    if (bookSource != null && !embeddedWorldBook) return null;
+    if (embeddedWorldBook && embeddedWorldBook.name === "导入的世界书") embeddedWorldBook.name = `${src.name}的世界书`;
 
     const polaroidStyle = typeof src.polaroidStyle === "number" && Number.isFinite(src.polaroidStyle)
       ? Math.max(0, Math.min(4, Math.round(src.polaroidStyle)))
@@ -205,10 +221,10 @@ export function parseCharacterFromJson(
       : undefined;
 
     return {
-      name: String(src.name ?? ""),
-      persona: String(src.description ?? src.persona ?? ""),
-      avatar: validAvatar(src.avatar),
-      personality: typeof src.personality === "string" && src.personality.trim() ? src.personality : undefined,
+      name: profile.name,
+      persona: profile.persona,
+      avatar: validAvatar(src.avatar) ?? validAvatar(obj.avatar),
+      personality: profile.personality || undefined,
       tags: Array.isArray(src.tags) ? src.tags.map(String) : [],
       wechatID: typeof src.wechatID === "string" && src.wechatID.trim() ? src.wechatID : undefined,
       timeZone: normalizeTimeZone(src.timeZone ?? src.timezone ?? src.time_zone),
@@ -217,9 +233,13 @@ export function parseCharacterFromJson(
       polaroidImageX,
       polaroidImageY,
       polaroidImageZoom,
+      importProfileVersion: 1,
+      importedCard: obj.spec === "chara_card_v2" || obj.spec === "chara_card_v3" || "first_mes" in src || "character_book" in src
+        ? obj : (src.importedCard && typeof src.importedCard === "object" ? src.importedCard as Record<string, unknown> : undefined),
+      embeddedWorldBook: embeddedWorldBook || undefined,
+      linkedWorldBookName: typeof extensions.world === "string" ? extensions.world.trim() : undefined,
     };
-  } catch (e) {
-    if (e instanceof Error && e.message === CHAR_BLOCKED_FIELDS) throw e;
+  } catch {
     return null;
   }
 }
@@ -237,6 +257,7 @@ function readPngTextChunk(u8: Uint8Array, keyword: string): string | null {
 
   while (offset + 12 <= u8.length) {
     const length = dv.getUint32(offset);
+    if (length > u8.length - offset - 12) return null;
     const type = String.fromCharCode(
       u8[offset + 4],
       u8[offset + 5],
@@ -255,7 +276,7 @@ function readPngTextChunk(u8: Uint8Array, keyword: string): string | null {
       }
       if (sep >= 0) {
         const kw = new TextDecoder().decode(data.subarray(0, sep));
-        if (kw === keyword) {
+        if (kw.toLowerCase() === keyword) {
           // tEXt 文本是 latin1 编码
           return new TextDecoder("latin1").decode(data.subarray(sep + 1));
         }
@@ -265,7 +286,7 @@ function readPngTextChunk(u8: Uint8Array, keyword: string): string | null {
       let pos = 0;
       while (pos < data.length && data[pos] !== 0) pos++;
       const kw = new TextDecoder().decode(data.subarray(0, pos));
-      if (kw === keyword) {
+      if (kw.toLowerCase() === keyword) {
         pos++; // skip null
         const compressionFlag = data[pos++];
         pos++; // compression method
@@ -289,16 +310,16 @@ export function parseCharacterFromPng(
   buffer: ArrayBuffer
 ): CharacterImportData | null {
   const u8 = new Uint8Array(buffer);
-  const charaBase64 = readPngTextChunk(u8, "ai_phone_character");
-  if (!charaBase64) return null;
-
-  try {
-    const jsonStr = decodeURIComponent(escape(atob(charaBase64)));
-    return parseCharacterFromJson(jsonStr);
-  } catch (e) {
-    if (e instanceof Error && e.message === CHAR_BLOCKED_FIELDS) throw e;
-    return null;
+  for (const keyword of ["ccv3", "chara", "ai_phone_character"]) {
+    const encoded = readPngTextChunk(u8, keyword);
+    if (!encoded) continue;
+    try {
+      const jsonStr = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(atob(encoded), c => c.charCodeAt(0)));
+      const result = parseCharacterFromJson(jsonStr);
+      if (result) return result;
+    } catch { /* Try the next supported metadata chunk. */ }
   }
+  return null;
 }
 
 // ── CRC32 ────────────────────────────────────────────
@@ -429,6 +450,7 @@ export async function exportCharacterAsPng(char: Character): Promise<void> {
     schema_version: "1.0",
     name: char.name,
     description: char.persona,
+    importedCard: char.importedCard,
     personality: char.personality || "",
     avatar: "none",
     tags: char.tags || [],

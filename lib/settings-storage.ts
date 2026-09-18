@@ -41,41 +41,10 @@ import {
 } from "./settings-db";
 import { kvGet, kvSet, kvRemove, registerKvMigration } from "./kv-db";
 import { isGenerationParameterKey } from "./generation-parameters";
+import { adaptPresetForPhone, asImportRecord, cleanRegexStyleCss } from "./preset-adaptation";
 
 // --- Unsupported import format detection ---
 export const UNSUPPORTED_IMPORT_FORMAT = "UNSUPPORTED_IMPORT_FORMAT";
-
-/** Preset fingerprint fields never present in our exports. */
-const UNSUPPORTED_PRESET_FIELDS = [
-    // API/model provider fields
-    "chat_completion_source", "openai_model", "claude_model", "windowai_model",
-    "reverse_proxy", "proxy_password", "mancer_model", "togetherai_model",
-    "ollama_model", "preset_settings_type", "api_url_scale",
-    // External generation/feature fields
-    "assistant_prefill", "assistant_impersonation", "claude_use_sysprompt",
-    "use_makersuite_sysprompt", "squash_system_messages", "image_inlining",
-    "continue_prefill", "function_calling", "seed", "n",
-];
-
-function isUnsupportedPresetFormat(obj: Record<string, unknown>): boolean {
-    return UNSUPPORTED_PRESET_FIELDS.some(f => f in obj);
-}
-
-/** World book shapes with unsupported root/entry fields. */
-const UNSUPPORTED_WB_ROOT_FIELDS = ["recursiveScan", "caseSensitive", "originalData", "globalSelect"];
-const UNSUPPORTED_WB_ENTRY_FIELDS = ["selectiveLogic", "secondary_keys", "extensions", "characterFilter", "vectorized"];
-
-function isUnsupportedWorldBookFormat(obj: Record<string, unknown>): boolean {
-    // Root-level external fields
-    if (UNSUPPORTED_WB_ROOT_FIELDS.some(f => f in obj)) return true;
-    // Dictionary entries are treated as unsupported import format
-    if (obj.entries && typeof obj.entries === "object" && !Array.isArray(obj.entries)) return true;
-    // Check entry-level external fields
-    const entries = Array.isArray(obj.entries) ? obj.entries : (obj.entries && typeof obj.entries === "object" ? Object.values(obj.entries) : []);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (entries.length > 0 && entries.some((e: any) => e && UNSUPPORTED_WB_ENTRY_FIELDS.some(f => f in e))) return true;
-    return false;
-}
 
 // --- Keys ---
 const API_CONFIGS_KEY = "ai_phone_api_configs_v1";
@@ -310,12 +279,17 @@ export function createPreset(name: string): PresetConfig {
 
 export function parsePresetFromJson(text: string, fallbackName: string = "导入的预设"): PresetConfig | null {
     try {
-        const obj = JSON.parse(text);
-        if (!obj || typeof obj !== "object") return null;
+        const raw = JSON.parse(text);
+        if (!raw || typeof raw !== "object" || Array.isArray(raw) || !Array.isArray(raw.prompts) || !raw.prompts.length) return null;
+        if (raw.prompts.some((p: unknown) => !p || typeof p !== "object" || Array.isArray(p))) return null;
+        const obj = adaptPresetForPhone(raw, createBuiltinPreset()).data;
+        for (const key of ["temperature", "top_p", "top_k", "frequency_penalty", "presence_penalty", "repetition_penalty", "openai_max_tokens", "openai_max_context", "top_a", "min_p"]) {
+            if (typeof obj[key] === "string" && String(obj[key]).trim() && Number.isFinite(Number(obj[key]))) obj[key] = Number(obj[key]);
+        }
+        if (obj.openai_max_tokens === undefined && Number.isFinite(Number(raw.max_tokens ?? raw.max_length))) obj.openai_max_tokens = Number(raw.max_tokens ?? raw.max_length);
 
-        if (isUnsupportedPresetFormat(obj)) throw new Error(UNSUPPORTED_IMPORT_FORMAT);
-
-        const preset = createPreset(obj.name || fallbackName);
+        const preset = createPreset(typeof obj.name === "string" && obj.name.trim() ? obj.name : fallbackName);
+        if (typeof obj.description === "string") preset.description = obj.description;
 
         // Extract basic fields
         if (typeof obj.temperature === "number") preset.temperature = obj.temperature;
@@ -433,6 +407,8 @@ export function createWorldBook(name: string): WorldBookConfig {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseWorldBookEntry(e: any): WorldBookEntry {
+    const ext = e.extensions && typeof e.extensions === "object" ? e.extensions : {};
+    const finite = (value: unknown, fallback: number) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)) ? Number(value) : fallback;
     // Resolve key: support arrays, strings, and fallback field names
     let key = "";
     if (Array.isArray(e.key)) {
@@ -443,30 +419,33 @@ function parseWorldBookEntry(e: any): WorldBookEntry {
     // Merge disable/disabled/enabled: entry is disabled if disable=true OR enabled=false
     const isDisabled = Boolean(e.disable || e.disabled || false) || (e.enabled === false);
     return {
-        uid: e.uid ? String(e.uid) : String(e.id || generateId("wb-entry")),
+        uid: String(e.uid ?? e.id ?? generateId("wb-entry")),
         key,
         content: String(e.content ?? ""),
-        comment: String(e.comment ?? ""),
+        comment: String(e.comment ?? e.name ?? ""),
         use_regex: Boolean(e.use_regex || e.isRegex || false),
         disable: isDisabled,
         constant: Boolean(e.constant || false),
-        position: e.position !== undefined ? (typeof e.position === "string" && /^\d+$/.test(e.position) ? Number(e.position) : e.position) : "before_char",
-        depth: Number(e.depth) || 0,
-        probability: Number(e.probability) || 100,
-        useProbability: Boolean(e.useProbability || false),
-        role: Number(e.role) || 0,
-        insertion_order: Number(e.order ?? e.insertion_order ?? 50),
+        position: ext.position ?? (typeof e.position === "string" && /^\d+$/.test(e.position) ? Number(e.position) : e.position) ?? "before_char",
+        depth: finite(e.depth ?? ext.depth, 0),
+        probability: Math.max(0, Math.min(100, finite(e.probability ?? ext.probability, 100))),
+        useProbability: Boolean(e.useProbability ?? ext.useProbability ?? false),
+        role: finite(e.role ?? ext.role, 0),
+        insertion_order: finite(e.order ?? e.insertion_order, 50),
     };
 }
 
 export function parseWorldBookFromJson(text: string): WorldBookConfig | null {
     try {
         const obj = JSON.parse(text);
-        if (!obj || typeof obj !== "object") return null;
-
-        if (isUnsupportedWorldBookFormat(obj)) throw new Error(UNSUPPORTED_IMPORT_FORMAT);
+        if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+        if (!obj.entries || typeof obj.entries !== "object") return null;
+        const entries = Array.isArray(obj.entries) ? obj.entries : Object.values(obj.entries);
+        if (entries.some((entry: unknown) => !entry || typeof entry !== "object" || Array.isArray(entry) || typeof (entry as Record<string, unknown>).content !== "string")) return null;
 
         const wb = createWorldBook(obj.name || "导入的世界书");
+        wb.description = typeof obj.description === "string" ? obj.description : "";
+        wb.originalData = obj.originalData && typeof obj.originalData === "object" ? obj.originalData : obj;
         if (Array.isArray(obj.entries)) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const parsedEntries = obj.entries.map((e: any) => parseWorldBookEntry(e));
@@ -543,28 +522,36 @@ export function createRegexGroup(name: string): RegexConfig {
     };
 }
 
-export function parseRegexFromJson(text: string, fallbackName: string = "导入的正则组"): RegexConfig | null {
+export function parseRegexFromJson(text: string, fallbackName: string = "导入的正则组", options: { external?: boolean; defaultTags?: string[] } = {}): RegexConfig | null {
     try {
         const obj = JSON.parse(text);
         if (!obj) return null;
 
-        let rulesArray = [];
+        let rulesArray: unknown[] = [];
+        let external = options.external === true;
         if (Array.isArray(obj)) {
-            // Raw array of rules is an unsupported import format.
-            throw new Error(UNSUPPORTED_IMPORT_FORMAT);
+            rulesArray = obj;
+            external = true;
         } else if (obj.rules && Array.isArray(obj.rules)) {
             // Group format: { name, rules: [...] } — our format
             rulesArray = obj.rules;
-        } else if (obj.findRegex || obj.scriptName) {
-            // Single regex script object without group wrapper is unsupported.
-            throw new Error(UNSUPPORTED_IMPORT_FORMAT);
+        } else if (Array.isArray(obj.regex_scripts) || Array.isArray(obj.extensions?.regex_scripts)) {
+            rulesArray = obj.regex_scripts ?? obj.extensions.regex_scripts;
+            external = true;
+        } else if (typeof obj.findRegex === "string" || typeof obj.regex === "string") {
+            rulesArray = [obj];
+            external = true;
         } else {
             return null; // Don't know how to parse
         }
+        if (!rulesArray.length || rulesArray.some(raw => {
+            const r = asImportRecord(raw);
+            return typeof (r.findRegex ?? r.regex) !== "string" || !(r.findRegex ?? r.regex);
+        })) return null;
 
         // Determine group name: JSON name > filename > first rule's scriptName > default
         const groupName = obj.name || obj.scriptName || fallbackName
-            || (rulesArray[0]?.scriptName ? String(rulesArray[0].scriptName) : "导入的正则组");
+            || (asImportRecord(rulesArray[0]).scriptName ? String(asImportRecord(rulesArray[0]).scriptName) : "导入的正则组");
 
         const group = createRegexGroup(groupName);
         if (obj.description) group.description = String(obj.description);
@@ -574,10 +561,7 @@ export function parseRegexFromJson(text: string, fallbackName: string = "导入�
             // --- placement mapping ---
             // Some imports use promptOnly/markdownOnly flags alongside placement array.
             // If only promptOnly is set and placement is missing, default to [1] (input).
-            let placement: number[] = Array.isArray(r.placement) ? r.placement.map(Number) : [1];
-            if (r.promptOnly && !r.markdownOnly && placement.length === 0) {
-                placement = [1];
-            }
+            const placement: number[] = Array.isArray(r.placement) ? r.placement.map(Number).filter((p: number) => [1, 2, 3, 5, 6].includes(p)) : [external ? 2 : 1];
 
             // --- trimStrings ---
             let trimStrings: string[] | undefined;
@@ -586,17 +570,18 @@ export function parseRegexFromJson(text: string, fallbackName: string = "导入�
             }
 
             return {
-                id: r.id || generateId("regex-rule"),
+                id: generateId("regex-rule"),
                 scriptName: String(r.scriptName || r.name || "未命名规则"),
                 findRegex: String(r.findRegex || r.regex || ""),
-                replaceString: String(r.replaceString || r.replace || ""),
-                tags: normalizeRegexRuleTags(r.tags),
+                replaceString: cleanRegexStyleCss(String(r.replaceString ?? r.replace ?? "")),
+                tags: normalizeRegexRuleTags(r.tags ?? options.defaultTags ?? (external ? ["story"] : undefined)),
                 disabled: Boolean(r.disabled || false),
                 placement,
                 trimStrings,
-                markdownOnly: r.markdownOnly === true ? true : undefined,
+                markdownOnly: typeof r.markdownOnly === "boolean" ? r.markdownOnly : external && r.promptOnly !== true ? true : undefined,
                 promptOnly: r.promptOnly === true ? true : undefined,
                 runOnEdit: r.runOnEdit === true ? true : undefined,
+                historyOnly: r.historyOnly === true ? true : undefined,
                 substituteRegex: typeof r.substituteRegex === "number" ? r.substituteRegex : undefined,
                 minDepth: typeof r.minDepth === "number" && !isNaN(r.minDepth) ? r.minDepth : undefined,
                 maxDepth: typeof r.maxDepth === "number" && !isNaN(r.maxDepth) ? r.maxDepth : undefined,
@@ -1031,7 +1016,15 @@ export function resolveBinding(
         if (slot.regexIds && slot.regexIds.length > 0) resolved.regexIds = [...slot.regexIds];
     };
 
-    if (!characterId) return resolved;
+    const includePresetRegexes = (): BindingSlot => {
+        const preset = readPresetsCache().find(item => item.id === resolved.presetId);
+        if (preset?.linkedRegexIds?.length) resolved.regexIds = [...new Set([...(resolved.regexIds ?? []), ...preset.linkedRegexIds])];
+        return resolved;
+    };
+    if (!characterId) {
+        if (appId && config.appDefaults?.[appId]) applySlot(config.appDefaults[appId]!);
+        return includePresetRegexes();
+    }
 
     // Apply character defaults
     const charBinding = config.characterBindings.find(b => b.characterId === characterId);
@@ -1047,7 +1040,7 @@ export function resolveBinding(
         applySlot(charBinding.appOverrides[appId]!);
     }
 
-    return resolved;
+    return includePresetRegexes();
 }
 
 /**
