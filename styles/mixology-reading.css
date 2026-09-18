@@ -1,0 +1,128 @@
+/* Soft daylight palettes for the game; authored ticket/HTML cards retain their own styles. */
+.mix-game:where([data-theme="garden"]),
+.mix-game:where([data-theme="paper"]) {
+    --mix-bg: #f5f8ee;
+    --mix-panel: #fffffa;
+    --mix-panel-2: #edf2e5;
+    --mix-line: rgba(65, 94, 57, .16);
+    --mix-violet: #487b4e;
+    --mix-gold: #88713e;
+    --mix-text: #283d2d;
+    --mix-dim: #617361;
+    --mix-faint: #7d8979;
+    --mix-prose: #425044;
+    --mix-prose-rgb: 66, 80, 68;
+    --mix-speech: #38643e;
+    --mix-emphasis: #826327;
+    --mix-day-sheet: rgba(255, 255, 250, .97);
+    --mix-day-wash: 245, 248, 238;
+    color: var(--mix-text);
+    color-scheme: light;
+}
+.mix-game:where([data-theme="paper"]) {
+    --mix-bg: #faf5ec;
+    --mix-panel: #fffcf7;
+    --mix-panel-2: #f1eadd;
+    --mix-line: rgba(109, 82, 53, .17);
+    --mix-violet: #89653f;
+    --mix-gold: #917339;
+    --mix-text: #453b2e;
+    --mix-dim: #7b6e5d;
+    --mix-faint: #938571;
+    --mix-prose: #574d40;
+    --mix-prose-rgb: 87, 77, 64;
+    --mix-speech: #76562f;
+    --mix-emphasis: #5a744b;
+    --mix-day-sheet: rgba(255, 252, 247, .97);
+    --mix-day-wash: 250, 245, 236;
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-bg::after {
+    background: linear-gradient(180deg, rgba(var(--mix-day-wash), .96), rgba(var(--mix-day-wash), .88) 35%, rgba(var(--mix-day-wash), .97));
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) :is(.mix-game-title, .mix-prose) {
+    text-shadow: none;
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-inputbar {
+    background: var(--mix-day-sheet);
+    border-top-color: var(--mix-line);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-input {
+    background: var(--mix-panel);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-input::placeholder {
+    color: var(--mix-faint);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-input:focus {
+    border-color: var(--mix-violet);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-user-bubble {
+    background: var(--mix-panel-2);
+    border: 1px solid var(--mix-line);
+    color: var(--mix-text);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-send-btn {
+    background: var(--mix-violet);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) :is(.mix-bgtune, .mix-sheet) {
+    background: var(--mix-day-sheet);
+    border-color: var(--mix-line);
+    box-shadow: 0 12px 36px rgba(45, 61, 35, .13);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) :is(.mix-bgtune-row span, .mix-bgtune-reset) {
+    color: var(--mix-dim);
+    border-color: var(--mix-line);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-sheet-backdrop::after {
+    background: rgba(var(--mix-day-wash), .94);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-icon-btn:active {
+    background: var(--mix-panel-2);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-say-btn {
+    background: var(--mix-panel-2);
+    border-color: var(--mix-line);
+}
+.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-say-btn[data-state="playing"] {
+    background: var(--mix-violet);
+    color: white;
+    box-shadow: 0 0 0 3px var(--mix-panel-2);
+}
+.mix-theme-label {
+    color: var(--mix-dim);
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+.mix-theme-options {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.mix-theme-options button {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 2px;
+    border: 1px solid var(--mix-line);
+    border-radius: 9px;
+    background: var(--mix-panel-2);
+    color: var(--mix-text);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+.mix-theme-options button::before {
+    content: "";
+    display: block;
+    width: 20px;
+    height: 20px;
+    margin: 0 auto 6px;
+    border-radius: 50%;
+    border: 1px solid rgba(100, 100, 100, .2);
+    background: #f5f8ee;
+}
+.mix-theme-options button[data-theme="paper"]::before { background: #faf5ec; }
+.mix-theme-options button[data-theme="dark"]::before { background: #15151d; }
+.mix-theme-options button[aria-pressed="true"] {
+    border-color: var(--mix-violet);
+    outline: 1px solid var(--mix-violet);
+    font-weight: 600;
+}

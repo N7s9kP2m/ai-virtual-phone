@@ -50,7 +50,7 @@ export type MixProseDialogue = {
 function renderParagraph(paragraph: MixProseParagraph, key: number, dialogue?: MixProseDialogue) {
     // HTML 片段：沙盒框就地渲染（与开场画布、尾调同一个框）；代码块：等宽显示
     if (paragraph.type === "html") {
-        return <div className="mix-html-block" key={key}><MixRichText text={paragraph.html} /></div>;
+        return <div className="mix-html-block" key={key}><MixRichText text={paragraph.html} dialogue={dialogue ? { ...dialogue, idPrefix: `${dialogue.idPrefix}html-${key}-` } : undefined} /></div>;
     }
     if (paragraph.type === "code") {
         return (

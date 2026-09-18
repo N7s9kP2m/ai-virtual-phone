@@ -846,9 +846,9 @@ export type MixSession = {
     /**
      * 背景观感微调（对局页右上角亮度按钮）：mask = 蒙版亮度 -40~100（0 为默认
      * 三段蒙版原样，负值在蒙版外再压一层匀黑更暗，100 为完全无蒙版）；
-     * blur = 封面模糊 0~20px。按局保存——不同封面的明暗各不相同，各局各调。
+     * blur = 封面模糊 0~20px；theme = 阅读外观，默认晴日花园。按局保存。
      */
-    bgTune?: { mask: number; blur: number };
+    bgTune?: { mask: number; blur: number; theme?: "garden" | "paper" | "dark" };
     createdAt: number;
     updatedAt: number;
 };
