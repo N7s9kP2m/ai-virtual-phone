@@ -33,7 +33,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 30px 20px 60px 20px;
+      padding: calc(var(--ai-phone-app-safe-top, 0px) + 24px) calc(var(--ai-phone-app-safe-right, 0px) + 16px) calc(var(--ai-phone-app-safe-bottom, 0px) + 40px) calc(var(--ai-phone-app-safe-left, 0px) + 16px);
     }
     .container {
       width: 100%;
@@ -225,7 +225,7 @@
 
     /* 移动端专属响应式断点 */
     @media (max-width: 640px) {
-      body { padding: 16px 12px 50px 12px; }
+      body { padding: calc(var(--ai-phone-app-safe-top, 0px) + 16px) calc(var(--ai-phone-app-safe-right, 0px) + 10px) calc(var(--ai-phone-app-safe-bottom, 0px) + 40px) calc(var(--ai-phone-app-safe-left, 0px) + 10px); }
       h1 { font-size: 22px; }
       p.subtitle { font-size: 13px; }
       .card-panel { padding: 16px; margin-top: 16px; }
@@ -252,7 +252,7 @@
 
     <!-- 隐藏的文件输入框 -->
     <input type="file" id="mixCharInput" accept=".json,.png,image/png,application/json,*/*" style="display: none;" onchange="if(this.files.length) handleMixCharFile(this.files[0])">
-    <input type="file" id="mixPresetInput" accept=".json,application/json,text/plain,*/*" style="display: none;" onchange="if(this.files.length) handleMixPresetFile(this.files[0])">
+    <input type="file" id="mixPresetInput" accept=".json,.zip,application/zip,application/json,text/plain,*/*" style="display: none;" onchange="if(this.files.length) handleMixPresetFile(this.files[0])">
     <input type="file" id="mixRegexInput" multiple accept=".json,.zip,application/zip,application/json,*/*" style="display: none;" onchange="if(this.files.length) handleMixRegexFile(this.files)">
 
     <!-- 三大调配槽位吧台看板 -->
@@ -285,10 +285,10 @@
           <span class="prompt-tag" id="mixPresetStatus" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">未装配</span>
         </div>
         <div id="mixPresetPreview" style="font-size: 13px; color: var(--text-muted); min-height: 48px; margin-bottom: 12px; line-height: 1.5;">
-          尚未载入酒馆预设。按启用顺序展开静态变量，历史前后分段保留。
+          尚未载入酒馆预设。支持单个预设 JSON 或预设包 ZIP；自动提取附带正则并装配至滤网槽。
         </div>
         <button type="button" class="btn btn-primary" onclick="document.getElementById('mixPresetInput').click()" style="width: 100%; font-size: 13px; padding: 8px 12px; background: linear-gradient(135deg, #a855f7, #6366f1);">
-          📁 选取酒馆预设 JSON
+          📁 选取酒馆预设 (JSON / ZIP)
         </button>
       </div>
 
@@ -302,7 +302,7 @@
           <span class="prompt-tag" id="mixRegexStatus" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">未装配</span>
         </div>
         <div id="mixRegexPreview" style="font-size: 13px; color: var(--text-muted); min-height: 48px; margin-bottom: 12px; line-height: 1.5;">
-          尚未载入正则包。支持多份 JSON 或 ZIP；区分显示和上下文规则，保留 flags 与 HTML。
+          尚未载入正则包。支持多份 JSON 或 ZIP；导入预设时亦会自动识别提取并装配。
         </div>
         <button type="button" class="btn btn-primary" onclick="document.getElementById('mixRegexInput').click()" style="width: 100%; font-size: 13px; padding: 8px 12px; background: linear-gradient(135deg, #10b981, #059669);">
           📁 选取正则脚本 (JSON / ZIP)
@@ -486,6 +486,14 @@ let mixCharData = null;
           <span style="font-size: 11px;">${openingTip}<br>设定总长: ${mixCharData.profileText.length} 字 (已穿透世界书)</span>
         `;
         updateMixRecipeTitle();
+
+        // 若角色卡带有内嵌正则美化（如 extensions.regex_scripts），且当前滤网槽未装配，自动提取装配
+        if (mixFilterRules.length === 0) {
+          const charRegexes = data.extensions?.regex_scripts || rawObj.extensions?.regex_scripts || data.character_book?.extensions?.regex_scripts;
+          if (Array.isArray(charRegexes) && charRegexes.length > 0) {
+            autoExtractAndEquipPresetRegexes({ extensions: { regex_scripts: charRegexes } }, `${name}角色卡`);
+          }
+        }
       } catch (err) {
         alert("解析角色卡失败：" + err.message);
       }
@@ -644,17 +652,169 @@ let mixCharData = null;
       renderMixPresetEditor(result);
     }
 
+    // 从预设对象及伴随文件中深度提取正则组（对齐 Float 与酒馆预设导入同源逻辑）
+    function extractPresetRegexSources(presetRaw, presetName, companionSources = []) {
+      const sources = [];
+      const root = presetRaw || {};
+      const innerPreset = (root.preset && typeof root.preset === 'object') ? root.preset : {};
+      const ext = root.extensions || innerPreset.extensions || {};
+
+      // 1. Float 格式：regex_groups / regexGroups
+      const groups = root.regex_groups || root.regexGroups || innerPreset.regex_groups || innerPreset.regexGroups;
+      if (Array.isArray(groups) && groups.length) {
+        groups.forEach((g, idx) => {
+          const gRules = collectMixRegexRules(g);
+          if (gRules.length) {
+            sources.push({
+              name: g.name || `${presetName} · 正则组 ${idx + 1}`,
+              raw: g,
+              isFromPreset: true
+            });
+          }
+        });
+      }
+
+      // 2. 酒馆标准预设格式：extensions.regex_scripts 或 root.regex_scripts
+      const scripts = ext.regex_scripts || root.regex_scripts || innerPreset.regex_scripts;
+      if (Array.isArray(scripts) && scripts.length) {
+        const scriptRules = collectMixRegexRules(scripts);
+        if (scriptRules.length) {
+          sources.push({
+            name: `${presetName} · 附带正则`,
+            raw: scripts,
+            isFromPreset: true
+          });
+        }
+      }
+
+      // 3. ZIP 压缩包内的伴随正则 JSON 文件（类似 Float 导入预设包 ZIP）
+      if (Array.isArray(companionSources) && companionSources.length) {
+        companionSources.forEach(comp => {
+          const compRules = collectMixRegexRules(comp.raw);
+          if (compRules.length) {
+            sources.push({
+              name: comp.name || `${presetName} · 伴随正则`,
+              raw: comp.raw,
+              isFromPreset: true
+            });
+          }
+        });
+      }
+
+      // 4. 兜底通用扫描：若上述显式路径未找到，扫描预设中除 prompts 以外的所有字段
+      if (!sources.length) {
+        const copy = { ...root };
+        delete copy.prompts;
+        if (copy.preset && typeof copy.preset === 'object') {
+          copy.preset = { ...copy.preset };
+          delete copy.preset.prompts;
+        }
+        const fallbackRules = collectMixRegexRules(copy);
+        if (fallbackRules.length) {
+          sources.push({
+            name: `${presetName} · 提取正则`,
+            raw: fallbackRules,
+            isFromPreset: true
+          });
+        }
+      }
+
+      return sources;
+    }
+
+    // 自动提取并装配预设中的正则规则
+    function autoExtractAndEquipPresetRegexes(presetRaw, presetName, companionSources = []) {
+      const extractedSources = extractPresetRegexSources(presetRaw, presetName, companionSources);
+      if (!extractedSources.length) return false;
+
+      const newRules = extractedSources.flatMap(s => collectMixRegexRules(s.raw));
+      if (!newRules.length) return false;
+
+      let mergedSources = [];
+      if (mixRegexSources.length > 0) {
+        const existingSignatures = new Set(
+          mixRegexSources.flatMap(s => collectMixRegexRules(s.raw)).map(r => `${r.findRegex || r.regex} -> ${r.replaceString || r.replace}`)
+        );
+        const uniqueSources = [];
+        extractedSources.forEach(s => {
+          const filtered = collectMixRegexRules(s.raw).filter(r => !existingSignatures.has(`${r.findRegex || r.regex} -> ${r.replaceString || r.replace}`));
+          if (filtered.length) {
+            uniqueSources.push({ name: s.name, raw: filtered, isFromPreset: true });
+            filtered.forEach(r => existingSignatures.add(`${r.findRegex || r.regex} -> ${r.replaceString || r.replace}`));
+          }
+        });
+        if (!uniqueSources.length) {
+          mixIssue(mixPresetWarnings, `【附带正则】预设中包含 ${newRules.length} 条正则规则，已与现有滤网槽规则完全相同，已自动跳过重复条目。`);
+          renderMixConversionReport();
+          return false;
+        }
+        mergedSources = [...mixRegexSources, ...uniqueSources];
+      } else {
+        mergedSources = extractedSources;
+      }
+
+      const allRules = mergedSources.flatMap(s => collectMixRegexRules(s.raw));
+      const result = convertMixRegex(allRules, currentMixRegexOptions());
+      mixRegexSources = mergedSources;
+      mixFilterRules = result.rules;
+      mixRegexNames = result.names;
+      mixRegexReadWarnings = [];
+      mixRegexWarnings = result.warnings;
+
+      renderMixRegexEditor();
+
+      const displayCount = mixFilterRules.filter(r => r.mode === 'display').length;
+      document.getElementById('mixRegexPreview').textContent =
+        `✨ 已从预设自动提取附带正则！共 ${mixFilterRules.length} 条（显示 ${displayCount} 条 · 上下文 ${mixFilterRules.length - displayCount} 条）\n保留原始 flags、HTML/CSS 与规则执行顺序。`;
+      mixStatus('mixRegexStatus', mixFilterRules.length);
+
+      mixIssue(mixPresetWarnings, `【自动提取正则】检测到预设「${presetName}」附带正则脚本，已自动提取 ${result.rules.length} 条美化规则并装配至「渲染滤网槽」。`);
+      renderMixConversionReport();
+      showToast(`✨ 已从预设自动提取并装配 ${result.rules.length} 条正则规则！`);
+      return true;
+    }
+
     async function handleMixPresetFile(file) {
       if (!file) return;
       try {
-        const raw = mixJson(await readFileAsText(file));
-        const result = convertMixPreset(raw, file.name.replace(/\.[^/.]+$/, ''));
-        mixPresetSource = { raw, name: result.name };
+        let presetRaw = null;
+        let presetName = file.name.replace(/\.[^/.]+$/, '');
+        let companionSources = [];
+
+        if (file.name.toLowerCase().endsWith('.zip')) {
+          const entries = await extractZipJsonFiles(file);
+          for (const entry of entries) {
+            try {
+              const parsed = mixJson(entry.text);
+              const isPreset = parsed && (Array.isArray(parsed.prompts) || (parsed.preset && Array.isArray(parsed.preset.prompts)));
+              if (isPreset && !presetRaw) {
+                presetRaw = parsed;
+                presetName = (entry.fileName || entry.name || file.name).replace(/\.[^/.]+$/, '');
+              } else {
+                companionSources.push({ name: entry.fileName || entry.name || file.name, raw: parsed });
+              }
+            } catch (e) {
+              // 忽略非合法 JSON
+            }
+          }
+          if (!presetRaw) throw new Error("压缩包内未找到包含 prompts 列表的酒馆预设 JSON 文件。");
+        } else {
+          const text = await readFileAsText(file);
+          presetRaw = mixJson(text);
+        }
+
+        const actualPreset = (presetRaw.preset && Array.isArray(presetRaw.preset.prompts)) ? presetRaw.preset : presetRaw;
+        const result = convertMixPreset(actualPreset, presetName);
+        mixPresetSource = { raw: actualPreset, name: result.name };
         mixPresetEntries = result.entries;
         mixPresetWarnings = result.warnings;
         rebuildMixPresetMaterials();
         renderMixPresetEditor(result);
         updateMixRecipeTitle();
+
+        // 核心特性：自动从预设中提取附带正则并装备到滤网槽
+        autoExtractAndEquipPresetRegexes(presetRaw, result.name, companionSources);
+
       } catch (err) { alert('解析预设失败：' + err.message); }
     }
 
@@ -1005,6 +1165,11 @@ function escapeHtml(str) {
 
 
     function showToast(message, duration = 2500) {
+      if (typeof window !== 'undefined' && window.AiPhone && window.AiPhone.ui && typeof window.AiPhone.ui.toast === 'function') {
+        try {
+          window.AiPhone.ui.toast(message);
+        } catch (e) {}
+      }
       const box = document.getElementById('toastBox');
       if (!box) { alert(message); return; }
       box.textContent = message;
