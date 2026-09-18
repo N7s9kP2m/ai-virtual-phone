@@ -1107,7 +1107,7 @@
 
   .app-root {
     position: fixed;
-    top: 0;
+    top: var(--mobile-viewport-top, 0px);
     left: 0;
     margin: 0;
     width: 100vw;
@@ -1211,7 +1211,7 @@ html.is-mobile-device body {
 
 html.is-mobile-device .app-root {
   position: fixed;
-  top: 0;
+  top: var(--mobile-viewport-top, 0px);
   left: 0;
   margin: 0;
   width: 100vw;

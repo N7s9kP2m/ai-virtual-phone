@@ -3,7 +3,7 @@
 // 独家特调 · 共享 UI 小件：材料卡 / 种类图标 / 详情字段渲染。
 // 酒柜（本地）与酒单/大厅（官网）两边共用，保持一套视觉语言。
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
     BookOpen,
     CircleUserRound,
@@ -408,4 +408,100 @@ export function MaterialDetail({ material }: { material: MixMaterial }) {
             ) : <DetailField label={`${MIX_KIND_LABELS[material.kind]}内容`} value={material.content} />}
         </>
     );
+}
+
+/**
+ * 槽位轮盘（.mix-wheel）的交互 Hook：
+ * 1. 电脑端鼠标按住拖拽横向滚动（Pointer Drag to Scroll，带防止误触卡片点击机制）；
+ * 2. 电脑端滚轮自适应横向滚动（Mouse Wheel to Horizontal Scroll）；
+ * 3. 拖拽过程中动态移除 CSS snap 动画以实现黄油般流畅手感；
+ * 4. 支持点击指示点（Dots）平滑滚动跳转到目标槽位。
+ */
+export function useWheelScroll() {
+    const wheelRef = useRef<HTMLDivElement>(null);
+    const [wheelIndex, setWheelIndex] = useState(0);
+    const dragRef = useRef({ isDown: false, startX: 0, scrollLeft: 0, hasMoved: false });
+
+    const handleWheelScroll = useCallback(() => {
+        const el = wheelRef.current;
+        if (!el) return;
+        const center = el.scrollLeft + el.clientWidth / 2;
+        let best = 0;
+        let bestDist = Infinity;
+        Array.from(el.children).forEach((child, i) => {
+            const c = child as HTMLElement;
+            const mid = c.offsetLeft + c.offsetWidth / 2;
+            const dist = Math.abs(mid - center);
+            if (dist < bestDist) { bestDist = dist; best = i; }
+        });
+        setWheelIndex(best);
+    }, []);
+
+    const scrollToSlot = useCallback((index: number) => {
+        const el = wheelRef.current;
+        if (!el || !el.children[index]) return;
+        const target = el.children[index] as HTMLElement;
+        const targetLeft = target.offsetLeft - (el.clientWidth - target.offsetWidth) / 2;
+        el.scrollTo({ left: targetLeft, behavior: "smooth" });
+    }, []);
+
+    const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return;
+        const el = wheelRef.current;
+        if (!el) return;
+        dragRef.current = { isDown: true, startX: e.clientX, scrollLeft: el.scrollLeft, hasMoved: false };
+    }, []);
+
+    const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const drag = dragRef.current;
+        if (!drag.isDown) return;
+        const el = wheelRef.current;
+        if (!el) return;
+        const dx = e.clientX - drag.startX;
+        if (!drag.hasMoved && Math.abs(dx) > 6) {
+            drag.hasMoved = true;
+            el.setAttribute("data-dragging", "true");
+            try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+        }
+        if (drag.hasMoved) {
+            el.scrollLeft = drag.scrollLeft - dx;
+        }
+    }, []);
+
+    const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const drag = dragRef.current;
+        if (!drag.isDown) return;
+        drag.isDown = false;
+        const el = wheelRef.current;
+        if (el) el.removeAttribute("data-dragging");
+        try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+        if (drag.hasMoved) {
+            const preventClick = (ev: MouseEvent) => {
+                ev.stopPropagation();
+                ev.preventDefault();
+                window.removeEventListener("click", preventClick, true);
+            };
+            window.addEventListener("click", preventClick, true);
+        }
+    }, []);
+
+    const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+        if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY;
+        }
+    }, []);
+
+    return {
+        wheelRef,
+        wheelIndex,
+        scrollToSlot,
+        handleWheelScroll,
+        wheelEvents: {
+            onPointerDown,
+            onPointerMove,
+            onPointerUp,
+            onPointerCancel: onPointerUp,
+            onWheel,
+        },
+    };
 }

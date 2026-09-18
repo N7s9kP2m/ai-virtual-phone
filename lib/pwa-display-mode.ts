@@ -1,4 +1,4 @@
-export type PwaDisplayPreference = "fullscreen" | "standalone";
+export type PwaDisplayPreference = "fullscreen" | "standalone" | "browser";
 export type RuntimePwaDisplayMode = "fullscreen" | "standalone" | "minimal-ui" | "browser";
 export type PwaHostedSurface = "custom-app" | "game";
 
@@ -40,7 +40,7 @@ export function readPwaDisplayPreference(cookie: string): PwaDisplayPreference |
   const match = cookie.match(new RegExp(`(?:^|;\\s*)${PWA_DISPLAY_MODE_COOKIE}=([^;]+)`));
   if (!match) return null;
   const value = decodeCookieValue(match[1]);
-  return value === "fullscreen" || value === "standalone" ? value : null;
+  return value === "fullscreen" || value === "standalone" || value === "browser" ? value : null;
 }
 
 export function writePwaDisplayPreference(preference: PwaDisplayPreference) {
@@ -49,15 +49,15 @@ export function writePwaDisplayPreference(preference: PwaDisplayPreference) {
   window.dispatchEvent(new CustomEvent(PWA_DISPLAY_MODE_CHANGED_EVENT, { detail: preference }));
 }
 
-/** Preserve the upstream default: mobile browsers request fullscreen unless Edge or explicitly disabled. */
+/** Firefox Android uses ordinary browser mode by default to avoid fullscreen churn on tab restore. */
 export function shouldRequestPwaFullscreen(): boolean {
   if (typeof document === "undefined" || typeof navigator === "undefined") return false;
   // Focusing a field must not change the browser display mode during typing.
   if (isPwaKeyboardField(document.activeElement)) return false;
   const preference = readPwaDisplayPreference(document.cookie);
-  if (preference === "standalone") return false;
+  if (preference === "standalone" || preference === "browser") return false;
   if (preference === "fullscreen") return true;
-  return !/Edg/i.test(navigator.userAgent);
+  return !/Edg/i.test(navigator.userAgent) && !isFirefoxAndroid(navigator.userAgent);
 }
 
 export function isFirefoxAndroid(userAgent: string): boolean {

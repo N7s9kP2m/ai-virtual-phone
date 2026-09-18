@@ -55,7 +55,7 @@ import { MixMaterialEditor } from "./mixology-editor";
 import { MixMatAutoCover, mixMatHasAutoCover } from "./mixology-preview";
 import { MixologyGame } from "./mixology-game";
 import { CommentThread, MixologyHall } from "./mixology-hall";
-import { AuthorAvatar, KindGlyph, MatCard, MaterialDetail, MixConfirm, MixTagList, SealedNote, formatMixTime } from "./mixology-shared";
+import { AuthorAvatar, KindGlyph, MatCard, MaterialDetail, MixConfirm, MixTagList, SealedNote, formatMixTime, useWheelScroll } from "./mixology-shared";
 import { MixConnectorSheet } from "./connector-sheet";
 import { MixSlotEditor } from "./slot-editor";
 import { describeMixCondition } from "@/lib/mixology/state";
@@ -136,8 +136,7 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
     const [openingPicker, setOpeningPicker] = useState<MixRecipe | null>(null);
     const [playing, setPlaying] = useState<string | null>(null);
     const [toast, setToast] = useState("");
-    const [wheelIndex, setWheelIndex] = useState(0);
-    const wheelRef = useRef<HTMLDivElement | null>(null);
+    const { wheelRef, wheelIndex, scrollToSlot, handleWheelScroll, wheelEvents } = useWheelScroll();
     const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const showToast = useCallback((message: string) => {
@@ -221,21 +220,6 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
         }
         return names;
     }, [slotMaterials]);
-
-    const handleWheelScroll = useCallback(() => {
-        const el = wheelRef.current;
-        if (!el) return;
-        const center = el.scrollLeft + el.clientWidth / 2;
-        let best = 0;
-        let bestDist = Infinity;
-        Array.from(el.children).forEach((child, i) => {
-            const c = child as HTMLElement;
-            const mid = c.offsetLeft + c.offsetWidth / 2;
-            const dist = Math.abs(mid - center);
-            if (dist < bestDist) { bestDist = dist; best = i; }
-        });
-        setWheelIndex(best);
-    }, []);
 
     const chipRowRef = useRef<HTMLDivElement>(null);
     const chipDragRef = useRef<{ isDown: boolean; startX: number; scrollLeft: number; hasMoved: boolean }>({
@@ -757,7 +741,7 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
                             </div>
                         ) : null}
                         <div className="mix-bar-hint">左右滑动切换槽位 · 点击槽位选材料 · 一格可以叠多件</div>
-                        <div className="mix-wheel" ref={wheelRef} onScroll={handleWheelScroll}>
+                        <div className="mix-wheel" ref={wheelRef} onScroll={handleWheelScroll} {...wheelEvents}>
                             {MIX_SLOT_ORDER.map((kind) => {
                                 const stack = slotMaterials[kind] ?? [];
                                 const chosen = stack[0];
@@ -819,7 +803,13 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
                         </div>
                         <div className="mix-wheel-dots">
                             {MIX_SLOT_ORDER.map((kind, i) => (
-                                <span className="mix-wheel-dot" data-active={i === wheelIndex ? "true" : undefined} key={kind} />
+                                <span
+                                    className="mix-wheel-dot"
+                                    data-active={i === wheelIndex ? "true" : undefined}
+                                    key={kind}
+                                    onClick={() => scrollToSlot(i)}
+                                    title={`切换至${MIX_KIND_LABELS[kind]}`}
+                                />
                             ))}
                         </div>
                         <button type="button" className="mix-brew-btn" onClick={handleBrew} disabled={!mixSlotEntries(barSlots, "character").length}>

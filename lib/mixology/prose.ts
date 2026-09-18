@@ -274,7 +274,14 @@ function closeBlock(paragraphs: MixProseParagraph[], block: OpenBlock): void {
 export function parseMixProse(text: string, options: MixProseParseOptions = {}): MixProseParagraph[] {
     const paragraphs: MixProseParagraph[] = [];
     let block: OpenBlock | null = null;
-    for (const rawLine of text.split(/\r?\n/)) {
+    // 预处理：清洗 AI 常用的包装标签（如小金/酒馆预设的 <zw>、思维链 <think>、以及 <u> 下划线修饰标签），
+    // 避免关闭预设正则后正文被误识别为裸 HTML 块沙盒而丢失小说级段落排版（首行两字缩进与空行）
+    const sanitized = String(text ?? "")
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .replace(/<\/?think\b[^>]*>?/gi, "")
+        .replace(/<\/?zw\b[^>]*>?/gi, "")
+        .replace(/<\/?u\b[^>]*>?/gi, "");
+    for (const rawLine of sanitized.split(/\r?\n/)) {
         const line = rawLine.trim();
         if (block?.kind === "code") {
             if (/^```/.test(line)) { closeBlock(paragraphs, block); block = null; }

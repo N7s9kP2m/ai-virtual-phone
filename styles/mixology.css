@@ -690,6 +690,15 @@
     gap: 14px;
     padding: 14px 15% 6px;
     scrollbar-width: none;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.mix-wheel[data-dragging="true"] {
+    scroll-snap-type: none !important;
+    scroll-behavior: auto !important;
+    cursor: grabbing !important;
 }
 
 .mix-wheel::-webkit-scrollbar {
@@ -810,17 +819,24 @@
 }
 
 .mix-wheel-dot {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.14);
-    transition: background 0.2s, width 0.2s;
+    background: rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: background 0.2s, width 0.2s, transform 0.15s;
+}
+
+.mix-wheel-dot:hover {
+    background: rgba(255, 255, 255, 0.45);
+    transform: scale(1.25);
 }
 
 .mix-wheel-dot[data-active="true"] {
     width: 14px;
     border-radius: 3px;
     background: var(--mix-violet);
+    transform: none;
 }
 
 .mix-brew-btn {

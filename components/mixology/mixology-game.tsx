@@ -17,7 +17,7 @@ import { MIX_KIND_LABELS, MIX_SLOT_ORDER, mixEncoreRenderHtml, mixPanelLayoutOf,
 import { applyMixFilterRules, mixStreamText } from "@/lib/mixology/prose";
 import { MixProseView } from "./prose-view";
 import { MixRichText } from "./rich-text";
-import { KindGlyph, MixConfirm } from "./mixology-shared";
+import { KindGlyph, MixConfirm, useWheelScroll } from "./mixology-shared";
 import { MixTicketFrame } from "./ticket-frame";
 import { audioToBlob, MixMechanismInline, MixMechanismPanel, sendMixDialogue } from "./mechanism-panel";
 import { MixTrustedSlot } from "./trusted-slot";
@@ -191,7 +191,7 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
      * 不用退出对局回酒柜改。slot 有值 = 从某格的「+」新建，保存后顺手放进那一格。
      */
     const [matEditor, setMatEditor] = useState<{ kind: MixMaterialKind; initial?: MixMaterial; slot?: MixMaterialKind } | null>(null);
-    const [wheelIndex, setWheelIndex] = useState(0);
+    const { wheelRef, wheelIndex, scrollToSlot, handleWheelScroll, wheelEvents } = useWheelScroll();
     /**
      * 酒柜外部变更计数：小卷（吉祥物工具）改完材料会广播这个事件，对局里的
      * 画布/小票/装饰都是渲染时从酒柜现取的，靠它促使下面两个 useMemo 重取——
@@ -205,7 +205,6 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
     }, []);
     const scrollRef = useRef<HTMLDivElement | null>(null);
     const abortRef = useRef<AbortController | null>(null);
-    const wheelRef = useRef<HTMLDivElement | null>(null);
     /**
      * 滚动落点：还没开口的局停在扉页顶上（开场画布要从头看），聊过的局停在最新一条上。
      * free = 用户自己翻过了，别再拽他。
@@ -223,21 +222,6 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
      * iOS Safari 没有 scroll anchoring，不这么做就会被推得乱跳。
      */
     const loadMoreAnchorRef = useRef<{ turnId: string; top: number; until: number } | null>(null);
-
-    const handleWheelScroll = useCallback(() => {
-        const el = wheelRef.current;
-        if (!el) return;
-        const center = el.scrollLeft + el.clientWidth / 2;
-        let best = 0;
-        let bestDist = Infinity;
-        Array.from(el.children).forEach((child, i) => {
-            const c = child as HTMLElement;
-            const mid = c.offsetLeft + c.offsetWidth / 2;
-            const dist = Math.abs(mid - center);
-            if (dist < bestDist) { bestDist = dist; best = i; }
-        });
-        setWheelIndex(best);
-    }, []);
 
     // 封面 / 小票渲染代码 / 装饰 CSS：按方案槽位从酒柜现取
     const assets = useMemo(() => {
@@ -1445,7 +1429,7 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
                                 </div>
                             ) : null}
                             <div className="mix-bar-hint">左右滑动切换槽位 · 点击槽位整理材料、顺序与生效条件</div>
-                            <div className="mix-wheel" ref={wheelRef} onScroll={handleWheelScroll}>
+                            <div className="mix-wheel" ref={wheelRef} onScroll={handleWheelScroll} {...wheelEvents}>
                                 {MIX_SLOT_ORDER.map((kind) => {
                                     const stack = mixSlotEntries(session.recipe.slots, kind);
                                     const mat = stack[0] ? getMixMaterial(stack[0].materialId) : null;
@@ -1501,7 +1485,13 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
                             </div>
                             <div className="mix-wheel-dots">
                                 {MIX_SLOT_ORDER.map((kind, i) => (
-                                    <span className="mix-wheel-dot" data-active={i === wheelIndex ? "true" : undefined} key={kind} />
+                                    <span
+                                        className="mix-wheel-dot"
+                                        data-active={i === wheelIndex ? "true" : undefined}
+                                        key={kind}
+                                        onClick={() => scrollToSlot(i)}
+                                        title={`切换至${MIX_KIND_LABELS[kind]}`}
+                                    />
                                 ))}
                             </div>
                         </div>

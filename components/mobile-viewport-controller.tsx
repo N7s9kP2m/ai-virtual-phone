@@ -30,18 +30,24 @@ export function MobileViewportController() {
 
     const measure = () => {
       frame = 0;
+      // Background tabs can report stale/fullscreen geometry while browser chrome is restoring.
+      if (document.visibilityState === "hidden") return;
       if (!media.matches && !root.classList.contains("is-mobile-device")) {
         root.style.removeProperty("--mobile-viewport-height");
+        root.style.removeProperty("--mobile-viewport-top");
         return;
       }
       // Pinch zoom must not resize the app; visualViewport also includes keyboard occlusion.
       if (viewport && Math.abs(viewport.scale - 1) > 0.01) return;
-      let height = Math.min(window.innerHeight, viewport?.height ?? window.innerHeight);
+      // Fixed positioning is relative to the layout viewport. The visible viewport can
+      // also move vertically on resume/keyboard pan; updating height alone leaves it misaligned.
+      const top = Math.max(0, Math.min(window.innerHeight - 1, viewport?.offsetTop || 0));
+      let height = Math.min(window.innerHeight - top, viewport?.height ?? window.innerHeight);
       const active = document.activeElement;
       const composing = isPwaKeyboardField(active) && active?.closest(".chat-input-bar, .story-composer, .mix-game-inputbar");
       const keyboardRect = keyboard?.boundingRect;
       const actualKeyboard = Boolean(keyboardRect && keyboardRect.height > 0);
-      if (actualKeyboard) height = Math.min(height, Math.max(1, keyboardRect!.top));
+      if (actualKeyboard) height = Math.min(height, Math.max(1, keyboardRect!.top - top));
       const shrunk = baselineHeight - height > 80;
       if (composing && (actualKeyboard || shrunk)) sawKeyboard = true;
       // Some fullscreen browsers expose neither viewport resizing nor keyboard geometry.
@@ -51,6 +57,7 @@ export function MobileViewportController() {
       // Let users calibrate unreported keyboards instead of guessing their height.
       if (fallback) height = Math.round(baselineHeight * availableFraction.current);
       root.dataset.keyboardEstimated = fallback ? "true" : "false";
+      root.style.setProperty("--mobile-viewport-top", `${top}px`);
       if (height > 0) root.style.setProperty("--mobile-viewport-height", `${height}px`);
     };
     const scheduleMeasure = () => {
@@ -58,7 +65,14 @@ export function MobileViewportController() {
       frame = window.requestAnimationFrame(measure);
     };
     const recover = () => {
-      if (document.visibilityState === "hidden") return;
+      if (document.visibilityState === "hidden") {
+        timers.forEach(window.clearTimeout);
+        window.clearTimeout(focusTimer);
+        focusedAt = 0;
+        sawKeyboard = false;
+        root.dataset.keyboardEstimated = "false";
+        return;
+      }
       timers.forEach(window.clearTimeout);
       // Reset only document scrolling; conversation and desktop scroll positions are preserved.
       if (media.matches || root.classList.contains("is-mobile-device")) {
@@ -95,8 +109,12 @@ export function MobileViewportController() {
       scheduleMeasure();
     };
     const dismissEstimatedKeyboard = (event: Event) => {
-      if (root.dataset.keyboardEstimated !== "true") return;
+      // Returning from another app can keep DOM focus although the native keyboard closed.
+      // Re-arm the estimate only after the user touches a composer again.
       const target = event.target;
+      if (focusedAt === 0 && target instanceof Element && isPwaKeyboardField(target)
+          && target.closest(".chat-input-bar, .story-composer, .mix-game-inputbar")) prepareKeyboard();
+      if (root.dataset.keyboardEstimated !== "true") return;
       if (target instanceof Element && !target.closest(".chat-input-bar, .story-composer, .mix-game-inputbar, .keyboard-position-handle")) {
         const active = document.activeElement;
         if (active instanceof HTMLElement && isPwaKeyboardField(active)) active.blur();
@@ -139,6 +157,7 @@ export function MobileViewportController() {
       viewport?.removeEventListener("scroll", scheduleMeasure);
       media.removeEventListener("change", scheduleMeasure);
       root.style.removeProperty("--mobile-viewport-height");
+      root.style.removeProperty("--mobile-viewport-top");
     };
   }, []);
   const moveHandle = (event: PointerEvent<HTMLButtonElement>) => {
@@ -159,7 +178,7 @@ export function MobileViewportController() {
       html[data-keyboard-estimated="true"] .keyboard-position-handle { display: block; }
     `}</style>
     <button type="button" className="keyboard-position-handle" aria-label="上下拖动调整输入区位置"
-      style={{ position: "fixed", top: "calc(var(--mobile-viewport-height) - 26px)", right: 8,
+      style={{ position: "fixed", top: "calc(var(--mobile-viewport-top, 0px) + var(--mobile-viewport-height) - 26px)", right: 8,
         zIndex: 2147483647, height: 24, padding: "2px 8px", borderRadius: 12,
         border: "1px solid #aaa6", background: "#f4f4f4", color: "#555", fontSize: 11,
         touchAction: "none", userSelect: "none" }}
