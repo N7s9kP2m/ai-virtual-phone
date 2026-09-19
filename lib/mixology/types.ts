@@ -207,8 +207,12 @@ export type MixCharacterCard = MixMaterialMeta & {
     profileMode?: MixCardProfileMode;
     /** 一框式的「角色资料」正文（仅 profileMode 为 "freeform" 时有意义） */
     profileText?: string;
+    /** 「角色资料」分条目列表（存在且非空时优先按条目生效） */
+    profileEntries?: MixPromptEntry[];
     /** 一框式的「世界与剧情」正文（仅 profileMode 为 "freeform" 时有意义） */
     worldText?: string;
+    /** 「世界与剧情」分条目列表（存在且非空时优先按条目生效，便于世界书模块化管理） */
+    worldEntries?: MixPromptEntry[];
     /** @deprecated 已被开场画布取代，仅为兼容旧数据保留 */
     authorNote?: string;
 };

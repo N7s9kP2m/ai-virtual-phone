@@ -443,26 +443,37 @@ let mixCharData = null;
 
         const cb = data.character_book || rawObj.character_book || {};
         const entries = Array.isArray(cb.entries) ? cb.entries : [];
+        const now = Date.now();
 
         let profParts = [];
         let worldParts = [];
-        entries.forEach(e => {
-          if (e.enabled === false) return;
+        let worldEntries = [];
+        entries.forEach((e, idx) => {
           const content = (e.content || "").trim();
           if (!content) return;
           const comment = e.comment || "";
           const keys = Array.isArray(e.keys) ? e.keys : [];
-          if (keys.includes(name) || comment.includes("角色设定") || comment.includes(name)) {
-            profParts.push(`### ${comment || '人物档案'}\n${content}`);
+          const isProf = keys.includes(name) || comment.includes("角色设定") || comment.includes(name);
+          if (isProf) {
+            if (e.enabled !== false) {
+              profParts.push(`### ${comment || '人物档案'}\n${content}`);
+            }
           } else {
-            worldParts.push(`### ${comment || '世界设定'}\n${content}`);
+            if (e.enabled !== false) {
+              worldParts.push(`### ${comment || '世界设定'}\n${content}`);
+            }
+            worldEntries.push({
+              id: `world_${now}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+              name: comment || `世界设定 ${worldEntries.length + 1}`,
+              content: content,
+              enabled: e.enabled !== false
+            });
           }
         });
 
         const rawDesc = (data.description || rawObj.description || "").trim();
         if (rawDesc) profParts.unshift(rawDesc);
 
-        const now = Date.now();
         mixCharData = {
           id: `mixmat_char_${now}_${Math.random().toString(36).substring(2, 6)}`,
           kind: "character",
@@ -474,6 +485,7 @@ let mixCharData = null;
           profileMode: "freeform",
           profileText: profParts.length > 0 ? profParts.join("\n\n") : (rawDesc || "暂无详细资料"),
           worldText: worldParts.length > 0 ? worldParts.join("\n\n") : "架空世界背景",
+          worldEntries: worldEntries.length > 0 ? worldEntries : undefined,
           createdAt: now,
           updatedAt: now
         };

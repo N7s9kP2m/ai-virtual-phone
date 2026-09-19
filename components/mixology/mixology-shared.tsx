@@ -256,7 +256,23 @@ export function MaterialDetail({ material }: { material: MixMaterial }) {
                     // 一框式：两段正文各一块，作者自己排的 ## 小节原样展示
                     <>
                         <DetailField label="角色资料" value={card.profileText} />
-                        <DetailField label="世界与剧情" value={card.worldText} />
+                        {card.worldEntries && card.worldEntries.length > 0 ? (
+                            <div className="mix-preset-entry-list">
+                                <div className="mix-detail-label">
+                                    世界与剧情设定 · {card.worldEntries.length} 条 · {card.worldEntries.filter((entry) => entry.enabled !== false).length} 条启用
+                                </div>
+                                {card.worldEntries.map((entry, index) => (
+                                    <details key={entry.id || index} style={{ margin: "12px 0", padding: 10, border: "1px solid rgba(160,150,190,.25)", borderRadius: 12 }}>
+                                        <summary style={{ cursor: "pointer" }}>
+                                            {index + 1}. {entry.name || "未命名设定"} · {entry.enabled === false ? "已关闭" : "已启用"}
+                                        </summary>
+                                        <div className="mix-detail-value" style={{ marginTop: 10 }}>{entry.content}</div>
+                                    </details>
+                                ))}
+                            </div>
+                        ) : (
+                            <DetailField label="世界与剧情" value={card.worldText} />
+                        )}
                     </>
                 ) : (
                     <>
@@ -269,6 +285,21 @@ export function MaterialDetail({ material }: { material: MixMaterial }) {
                         <DetailField label="关系与身份" value={card.relations} />
                         <DetailField label="当前剧情" value={card.plot} />
                         <DetailField label="附加设定" value={card.extra} />
+                        {card.worldEntries && card.worldEntries.length > 0 ? (
+                            <div className="mix-preset-entry-list">
+                                <div className="mix-detail-label">
+                                    世界书独立设定 · {card.worldEntries.length} 条 · {card.worldEntries.filter((entry) => entry.enabled !== false).length} 条启用
+                                </div>
+                                {card.worldEntries.map((entry, index) => (
+                                    <details key={entry.id || index} style={{ margin: "12px 0", padding: 10, border: "1px solid rgba(160,150,190,.25)", borderRadius: 12 }}>
+                                        <summary style={{ cursor: "pointer" }}>
+                                            {index + 1}. {entry.name || "未命名设定"} · {entry.enabled === false ? "已关闭" : "已启用"}
+                                        </summary>
+                                        <div className="mix-detail-value" style={{ marginTop: 10 }}>{entry.content}</div>
+                                    </details>
+                                ))}
+                            </div>
+                        ) : null}
                     </>
                 )}
                 <DetailField label="开场白" value={card.openings.map((o, i) => `${card.openings.length > 1 ? `〔${i + 1}〕` : ""}${o}`).join("\n\n")} />

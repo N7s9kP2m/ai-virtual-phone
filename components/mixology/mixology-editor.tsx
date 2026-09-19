@@ -21,11 +21,13 @@ import { applyMixFilterRules } from "@/lib/mixology/prose";
 import { createBuiltinChecklist } from "@/lib/mixology/builtin";
 import {
     buildMixCardFreeformText,
+    joinPromptEntriesToMarkdown,
     MIX_CARD_PROFILE_FALLBACK,
     MIX_CARD_PROFILE_FIELDS,
     MIX_CARD_WORLD_FALLBACK,
     MIX_CARD_WORLD_FIELDS,
     parseMixCardFreeformText,
+    splitMarkdownToPromptEntries,
 } from "@/lib/mixology/card-freeform";
 import { MixCraftSheet, MixPreviewInline, MixStructureSheet } from "./mixology-preview";
 import { MixConfirm } from "./mixology-shared";
@@ -190,6 +192,9 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
     const [profileMode, setProfileMode] = useState<MixCardProfileMode>(initialCard?.profileMode === "freeform" ? "freeform" : "form");
     const [profileText, setProfileText] = useState(initialCard?.profileText ?? "");
     const [worldText, setWorldText] = useState(initialCard?.worldText ?? "");
+    const [worldEntries, setWorldEntries] = useState<MixPromptEntry[] | undefined>(() =>
+        initialCard?.worldEntries ? initialCard.worldEntries.map((e) => ({ ...e })) : undefined
+    );
     // 一框式切回分框是有损的（认不出的小节并进兜底框）：先弹一句确认
     const [modeConfirm, setModeConfirm] = useState<{ unmatched: number } | null>(null);
     const [openingsText, setOpeningsText] = useState(initialCard?.openings.join(OPENING_SEPARATOR) ?? "");
@@ -375,29 +380,30 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
                 setError("至少写一段开场白，开局才有酒可端。");
                 return;
             }
+            const effectiveWorldText = worldEntries && worldEntries.length > 0
+                ? joinPromptEntriesToMarkdown(worldEntries, true)
+                : (worldText.trim() || undefined);
+
+            const isFree = profileMode === "freeform";
             const card: MixCharacterCard = {
                 ...meta,
                 kind: "character",
                 charName: trimmedName,
-                baseInfo: baseInfo.trim() || undefined,
-                personality: personality.trim() || undefined,
-                appearance: appearance.trim() || undefined,
-                background: background.trim() || undefined,
-                worldview: worldview.trim() || undefined,
-                cognition: cognition.trim() || undefined,
-                relations: relations.trim() || undefined,
-                plot: plot.trim() || undefined,
-                extra: extra.trim() || undefined,
-                ...(profileMode === "freeform"
-                    ? {
-                        // 一框式只存两段正文，九个分框一律清空——正文只有一份，谁读都一样
-                        profileMode: "freeform" as const,
-                        profileText: profileText.trim() || undefined,
-                        worldText: worldText.trim() || undefined,
-                        baseInfo: undefined, personality: undefined, appearance: undefined, background: undefined,
-                        worldview: undefined, cognition: undefined, relations: undefined, plot: undefined, extra: undefined,
-                    }
-                    : {}),
+                baseInfo: isFree ? undefined : (baseInfo.trim() || undefined),
+                personality: isFree ? undefined : (personality.trim() || undefined),
+                appearance: isFree ? undefined : (appearance.trim() || undefined),
+                background: isFree ? undefined : (background.trim() || undefined),
+                worldview: isFree ? undefined : (worldview.trim() || undefined),
+                cognition: isFree ? undefined : (cognition.trim() || undefined),
+                relations: isFree ? undefined : (relations.trim() || undefined),
+                plot: isFree ? undefined : (plot.trim() || undefined),
+                extra: isFree ? undefined : (extra.trim() || undefined),
+                profileMode: isFree ? "freeform" : undefined,
+                profileText: isFree ? (profileText.trim() || undefined) : undefined,
+                worldText: isFree
+                    ? effectiveWorldText
+                    : (worldEntries && worldEntries.length > 0 ? effectiveWorldText : undefined),
+                worldEntries: worldEntries && worldEntries.length > 0 ? worldEntries : undefined,
                 openings,
                 examples: examples.filter((e) => e.text.trim()).map((e) => ({ role: e.role, text: e.text.trim() })),
                 canvas: canvas.trim() || undefined,
@@ -612,14 +618,123 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
                                     placeholder={"例：\n## 基础信息\n27 岁 / 183cm / 便利店夜班店员\n\n## 性格\n嘴上嫌弃手上诚实，怕麻烦但从不真的拒绝人\n\n## 外貌\n高瘦，总把制服外套袖子卷到手肘\n\n## 背景\n三年前从老家搬来，白天在读夜校"}
                                 />
                             </Field>
-                            <Field label="世界与剧情" hint="进入「世界与剧情」段">
-                                <textarea
-                                    className="mix-textarea"
-                                    style={{ minHeight: 220 }}
-                                    value={worldText}
-                                    onChange={(e) => setWorldText(e.target.value)}
-                                    placeholder={"例：\n## 世界观\n普通现代都市，没有超自然设定\n\n## 对{{user}}的初始认知\n只知道你是每周来三次的常客，不知道名字\n\n## 关系与身份\n熟客（微妙的默契）/ 新同事（他带你）\n\n## 当前剧情\n雨夜，打烊前十分钟，店里只剩你们两个\n\n## 附加设定\n店长老周只在白班出现"}
-                                />
+                            <Field
+                                label="世界与剧情（世界书）"
+                                hint={worldEntries
+                                    ? `条目从上到下生效；共 ${worldEntries.length} 条设定（已启用 ${worldEntries.filter(e => e.enabled !== false).length} 条）`
+                                    : "进入「世界与剧情」段；也可一键拆分为分条目管理"}
+                            >
+                                {worldEntries ? (
+                                    <div className="mix-example-list">
+                                        {worldEntries.map((entry, i) => (
+                                            <details key={entry.id} open={i === 0}>
+                                                <summary>
+                                                    <span style={{ color: entry.enabled === false ? "#94a3b8" : "#22c55e", marginRight: 6 }}>
+                                                        {entry.enabled === false ? "○" : "●"}
+                                                    </span>
+                                                    <strong style={{ opacity: entry.enabled === false ? 0.6 : 1 }}>
+                                                        {entry.name || "未命名设定"}
+                                                    </strong>
+                                                    <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.5, fontWeight: "normal" }}>
+                                                        {entry.content.length} 字
+                                                    </span>
+                                                </summary>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                                                    <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 12 }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={entry.enabled !== false}
+                                                            onChange={(e) => setWorldEntries((prev) => prev?.map((v, j) => j === i ? { ...v, enabled: e.target.checked } : v))}
+                                                        />
+                                                        启用
+                                                    </label>
+                                                    <input
+                                                        className="mix-input"
+                                                        style={{ flex: 1 }}
+                                                        value={entry.name}
+                                                        placeholder="条目标题（如：世界观、阵营、魔法体系）"
+                                                        onChange={(e) => setWorldEntries((prev) => prev?.map((v, j) => j === i ? { ...v, name: e.target.value } : v))}
+                                                    />
+                                                </div>
+                                                <textarea
+                                                    className="mix-textarea"
+                                                    style={{ minHeight: 110, marginTop: 8 }}
+                                                    value={entry.content}
+                                                    placeholder="条目具体设定内容..."
+                                                    onChange={(e) => setWorldEntries((prev) => prev?.map((v, j) => j === i ? { ...v, content: e.target.value } : v))}
+                                                />
+                                                <div style={{ display: "flex", gap: 6, marginTop: 6, justifyContent: "flex-end" }}>
+                                                    <button
+                                                        type="button"
+                                                        disabled={i === 0}
+                                                        onClick={() => setWorldEntries((prev) => prev && moveItem(prev, i, -1))}
+                                                    >
+                                                        上移
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={i === worldEntries.length - 1}
+                                                        onClick={() => setWorldEntries((prev) => prev && moveItem(prev, i, 1))}
+                                                    >
+                                                        下移
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setWorldEntries((prev) => prev?.filter((_, j) => j !== i))}
+                                                    >
+                                                        删除
+                                                    </button>
+                                                </div>
+                                            </details>
+                                        ))}
+                                        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                                            <button
+                                                type="button"
+                                                className="mix-pill-btn"
+                                                onClick={() => setWorldEntries((prev) => [
+                                                    ...(prev ?? []),
+                                                    { id: createMixId("world"), name: `设定 ${(prev?.length ?? 0) + 1}`, content: "", enabled: true },
+                                                ])}
+                                            >
+                                                + 添加设定条目
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="mix-pill-btn"
+                                                style={{ opacity: 0.85 }}
+                                                onClick={() => {
+                                                    const merged = joinPromptEntriesToMarkdown(worldEntries, false);
+                                                    setWorldText(merged);
+                                                    setWorldEntries(undefined);
+                                                }}
+                                            >
+                                                合并转为纯文本大框
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <textarea
+                                            className="mix-textarea"
+                                            style={{ minHeight: 220 }}
+                                            value={worldText}
+                                            onChange={(e) => setWorldText(e.target.value)}
+                                            placeholder={"例：\n## 世界观\n普通现代都市，没有超自然设定\n\n## 对{{user}}的初始认知\n只知道你是每周来三次的常客，不知道名字\n\n## 关系与身份\n熟客（微妙的默契）/ 新同事（他带你）\n\n## 当前剧情\n雨夜，打烊前十分钟，店里只剩你们两个\n\n## 附加设定\n店长老周只在白班出现"}
+                                        />
+                                        <div style={{ marginTop: 8 }}>
+                                            <button
+                                                type="button"
+                                                className="mix-pill-btn"
+                                                onClick={() => {
+                                                    const parsed = splitMarkdownToPromptEntries(worldText, "世界设定");
+                                                    setWorldEntries(parsed.length ? parsed : [{ id: createMixId("world"), name: "世界设定", content: worldText, enabled: true }]);
+                                                }}
+                                            >
+                                                🧩 转为分条目编辑（智能拆解世界书）
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </Field>
                         </>
                     ) : (
@@ -633,6 +748,26 @@ export function MixMaterialEditor({ kind, initial, onSave, onCancel }: EditorPro
                         <Field label="关系与身份"><textarea className="mix-textarea" value={relations} onChange={(e) => setRelations(e.target.value)} placeholder="玩家可以代入哪些身份、各自什么关系。例：熟客（微妙的默契）/ 新同事（他带你）" /></Field>
                         <Field label="当前剧情"><textarea className="mix-textarea" value={plot} onChange={(e) => setPlot(e.target.value)} placeholder="故事从哪一刻开始。例：雨夜，打烊前十分钟，店里只剩你们两个" /></Field>
                         <Field label="附加设定"><textarea className="mix-textarea" value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="配角、私设名词、地点等。例：店长老周只在白班出现；「三号柜」是他们之间的暗号" /></Field>
+                        {worldEntries && worldEntries.length > 0 ? (
+                            <Field label="世界书独立条目" hint={`共 ${worldEntries.length} 条设定`}>
+                                <div className="mix-example-list">
+                                    {worldEntries.map((entry, i) => (
+                                        <details key={entry.id}>
+                                            <summary>{entry.enabled === false ? "○" : "●"} {entry.name || "未命名设定"}</summary>
+                                            <label><input type="checkbox" checked={entry.enabled !== false} onChange={(e) => setWorldEntries((prev) => prev?.map((v, j) => j === i ? { ...v, enabled: e.target.checked } : v))} /> 启用</label>
+                                            <input className="mix-input" value={entry.name} onChange={(e) => setWorldEntries((prev) => prev?.map((v, j) => j === i ? { ...v, name: e.target.value } : v))} />
+                                            <textarea className="mix-textarea" value={entry.content} onChange={(e) => setWorldEntries((prev) => prev?.map((v, j) => j === i ? { ...v, content: e.target.value } : v))} />
+                                            <div style={{ display: "flex", gap: 6, marginTop: 4, justifyContent: "flex-end" }}>
+                                                <button type="button" disabled={i === 0} onClick={() => setWorldEntries((prev) => prev && moveItem(prev, i, -1))}>上移</button>
+                                                <button type="button" disabled={i === worldEntries.length - 1} onClick={() => setWorldEntries((prev) => prev && moveItem(prev, i, 1))}>下移</button>
+                                                <button type="button" onClick={() => setWorldEntries((prev) => prev?.filter((_, j) => j !== i))}>删除</button>
+                                            </div>
+                                        </details>
+                                    ))}
+                                    <button type="button" className="mix-pill-btn" onClick={() => setWorldEntries((prev) => [...(prev ?? []), { id: createMixId("world"), name: "新设定条目", content: "", enabled: true }])}>添加条目</button>
+                                </div>
+                            </Field>
+                        ) : null}
                         </>
                     )}
                     <Field label="开场白" hint="必填，写多个玩家开局可以挑，用单独一行 --- 分隔">
