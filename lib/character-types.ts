@@ -11,6 +11,7 @@ export type Character = {
   briefPersonaUpdatedAt?: string; // 简介生成时间；早于 updatedAt 时编辑器提示「设定已更新，建议重新生成」
   wechatID?: string;     // 手机号格式的微信号
   personality?: string;    // 角色性格
+  imageTags?: string;      // 生图形象特征英文 Tag（发色、瞳色、发型、服装），生图时置顶注入锁定外貌
   timeZone?: string;       // IANA 时区，例如 America/New_York；空值表示跟随系统时间
   tags?: string[];
   createdAt: string;

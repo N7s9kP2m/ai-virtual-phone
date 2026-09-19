@@ -195,6 +195,7 @@ export type OpenAiImagePreset = {
     size: string;
     quality: string;
     extraPrompt: string;
+    negativePrompt?: string;
 };
 
 export type ImageHostingProvider = "none" | "imgbb";
@@ -241,6 +242,7 @@ export type ImageGenerationSettings = {
     size: string;
     quality: string;
     extraPrompt: string;
+    negativePrompt?: string;
     openaiPresets?: OpenAiImagePreset[];
     activeOpenAiPresetId?: string;
     // NovelAI 模式配置

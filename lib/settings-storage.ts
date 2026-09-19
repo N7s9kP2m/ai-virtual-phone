@@ -668,6 +668,9 @@ export const DEFAULT_NOVELAI_PRESET: import("./settings-types").NovelAiPreset = 
     smeaDyn: false,
 };
 
+export const DEFAULT_NEGATIVE_PROMPT =
+    "worst quality, low quality, bad anatomy, bad hands, missing fingers, extra digits, cropped, signature, watermark, blurry, deformed";
+
 export const DEFAULT_IMAGE_GENERATION_SETTINGS: ImageGenerationSettings = {
     enabled: false,
     provider: "openai",
@@ -678,6 +681,7 @@ export const DEFAULT_IMAGE_GENERATION_SETTINGS: ImageGenerationSettings = {
     size: "1024x1024",
     quality: "auto",
     extraPrompt: "",
+    negativePrompt: DEFAULT_NEGATIVE_PROMPT,
     novelai: {
         apiKey: "",
         activePresetId: DEFAULT_NOVELAI_PRESET.id,
@@ -723,6 +727,7 @@ function normalizeOpenAiPreset(preset: Partial<OpenAiImagePreset> | null | undef
         size: typeof preset?.size === "string" ? preset.size : DEFAULT_IMAGE_GENERATION_SETTINGS.size,
         quality: typeof preset?.quality === "string" ? preset.quality : DEFAULT_IMAGE_GENERATION_SETTINGS.quality,
         extraPrompt: typeof preset?.extraPrompt === "string" ? preset.extraPrompt : "",
+        negativePrompt: typeof preset?.negativePrompt === "string" ? preset.negativePrompt : DEFAULT_NEGATIVE_PROMPT,
     };
 }
 
@@ -758,6 +763,7 @@ function normalizeImageGenerationSettings(settings: Partial<ImageGenerationSetti
             size: settings?.size,
             quality: settings?.quality,
             extraPrompt: settings?.extraPrompt,
+            negativePrompt: settings?.negativePrompt,
         }, 0)];
     const activeOpenAiPresetId = typeof settings?.activeOpenAiPresetId === "string"
         && openaiPresets.some(preset => preset.id === settings.activeOpenAiPresetId)
@@ -791,6 +797,7 @@ function normalizeImageGenerationSettings(settings: Partial<ImageGenerationSetti
         size: activeOpenAiPreset.size,
         quality: activeOpenAiPreset.quality,
         extraPrompt: activeOpenAiPreset.extraPrompt,
+        negativePrompt: activeOpenAiPreset.negativePrompt || DEFAULT_NEGATIVE_PROMPT,
         openaiPresets,
         activeOpenAiPresetId,
         novelai,

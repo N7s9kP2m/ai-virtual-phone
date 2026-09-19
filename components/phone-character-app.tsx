@@ -17,6 +17,7 @@ import {
 
 } from "@/lib/character-storage";
 import { generateBriefPersonaText, isBriefPersonaStale } from "@/lib/brief-persona";
+import { extractCharacterAppearanceTags } from "@/lib/image-prompt-translator";
 import { generateSupportingCharacters, materializeSupportingCharacter, type GeneratedSupportingCharacter } from "@/lib/npc-generator";
 import {
   addCharacterWorldRelation,
@@ -1994,6 +1995,9 @@ function CharArchiveView({
   const [briefPersona, setBriefPersona] = useState(char.briefPersona || "");
   const [briefBusy, setBriefBusy] = useState(false);
   const [briefError, setBriefError] = useState("");
+  const [imageTags, setImageTags] = useState(char.imageTags || "");
+  const [imageTagsBusy, setImageTagsBusy] = useState(false);
+  const [imageTagsError, setImageTagsError] = useState("");
   const [timeZone, setTimeZone] = useState(char.timeZone || "");
   const [tags, setTags] = useState<string[]>(char.tags || []);
   const [tagInput, setTagInput] = useState("");
@@ -2086,6 +2090,7 @@ function CharArchiveView({
     if (persona !== (char.persona || "")) return true;
     if (personality !== (char.personality || "")) return true;
     if (briefPersona !== (char.briefPersona || "")) return true;
+    if (imageTags !== (char.imageTags || "")) return true;
     if (timeZone !== (char.timeZone || "")) return true;
     if (avatar !== (char.avatar || null)) return true;
     if (polaroidStyle !== (char.polaroidStyle ?? 0)) return true;
@@ -2113,6 +2118,8 @@ function CharArchiveView({
       setPersonality(char.personality || "");
       setBriefPersona(char.briefPersona || "");
       setBriefError("");
+      setImageTags(char.imageTags || "");
+      setImageTagsError("");
       setTimeZone(char.timeZone || "");
       setTimeZoneSearch(char.timeZone || "");
       setShowTimeZonePicker(false);
@@ -2180,6 +2187,7 @@ function CharArchiveView({
         briefPersonaUpdatedAt: trimmedBrief
           ? (trimmedBrief !== (char.briefPersona || "").trim() ? new Date().toISOString() : char.briefPersonaUpdatedAt)
           : undefined,
+        imageTags: imageTags.trim() || undefined,
         timeZone: normalizedTimeZone,
         tags,
         avatar: avatar ?? null,
@@ -2209,6 +2217,25 @@ function CharArchiveView({
     deleteCharacterVersion(char.id, version.id);
     setVersions(loadCharacterVersions(char.id));
     setDeleteVersionTarget(null);
+  }
+
+  async function handleExtractImageTags() {
+    if (imageTagsBusy) return;
+    setImageTagsBusy(true);
+    setImageTagsError("");
+    try {
+      const text = await extractCharacterAppearanceTags({
+        ...char,
+        name: name.trim() || char.name || "未命名角色",
+        persona,
+        personality: personality.trim() || undefined,
+      });
+      setImageTags(text);
+    } catch (error) {
+      setImageTagsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setImageTagsBusy(false);
+    }
   }
 
   async function handleGenerateBrief() {
@@ -2651,6 +2678,43 @@ function CharArchiveView({
                 />
               ) : (
                 <p className="char-archive-p whitespace-pre-wrap break-words">{briefPersona}</p>
+              )}
+            </div>
+          )}
+
+          {/* 生图形象 Tag（外观特征） — 置顶注入到角色出图提示词，锁定发色发型服装，外貌永不漂移 */}
+          {(isEditing || imageTags.trim()) && (
+            <div className="char-log-entry mb-4 border-t border-dashed border-[#999] pt-3">
+              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <span className="char-log-entry-header !mb-0">IMAGE TAGS / 生图形象特征</span>
+                {isEditing && (
+                  <button
+                    className="ts-10 px-3 py-1 bg-[#111111] text-white border-none rounded-full cursor-pointer disabled:opacity-50 hover:bg-[#222222] transition-colors"
+                    disabled={imageTagsBusy}
+                    onClick={handleExtractImageTags}
+                  >
+                    {imageTagsBusy ? "提炼中…" : imageTags.trim() ? "重新提炼" : "从人设提炼"}
+                  </button>
+                )}
+              </div>
+              <p className="ts-10 opacity-60 mt-1">
+                用于生图时锁定固定外貌（发色、瞳色、发型、常服等英文 Tag），置顶注入避免换张图换张脸。
+              </p>
+              {imageTagsError && <p className="ts-10 mt-1" style={{ color: "#b4233b" }}>{imageTagsError}</p>}
+              {isEditing ? (
+                <AutoResizingTextarea
+                  value={imageTags}
+                  onChange={setImageTags}
+                  placeholder="例如：1girl, solo, silver hair, long hair, blue eyes, sailor uniform..."
+                  minHeight={45}
+                  style={{
+                    width: "100%", background: "color-mix(in srgb, var(--c-input) 50%, transparent)",
+                    border: "1px dashed #666", padding: 8, fontSize: "calc(12px*var(--app-text-scale,1))", lineHeight: 1.5,
+                    fontFamily: "inherit", marginTop: 8
+                  }}
+                />
+              ) : (
+                <p className="char-archive-p whitespace-pre-wrap break-words font-mono text-xs">{imageTags}</p>
               )}
             </div>
           )}

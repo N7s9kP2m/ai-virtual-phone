@@ -1182,6 +1182,7 @@ function GeneratedImagePromptDialog({
     useReferenceImage,
     onUseReferenceImageChange,
     hasReferenceImage,
+    actualPrompt,
 }: {
     value: string;
     onChange: (value: string) => void;
@@ -1192,6 +1193,7 @@ function GeneratedImagePromptDialog({
     useReferenceImage: boolean;
     onUseReferenceImageChange: (useRef: boolean) => void;
     hasReferenceImage: boolean;
+    actualPrompt?: string;
 }) {
     return (
         <div
@@ -1219,6 +1221,14 @@ function GeneratedImagePromptDialog({
                         placeholder="输入图片提示词"
                         disabled={busy}
                     />
+                    {actualPrompt && actualPrompt.trim() && actualPrompt.trim() !== value.trim() && (
+                        <div className="mt-2 p-2 rounded bg-black/5 dark:bg-white/5 border border-dashed border-gray-300 dark:border-gray-700 text-left">
+                            <div className="text-[11px] font-semibold opacity-70 mb-1">底层生图 Tag (自动转译/角色锁定):</div>
+                            <div className="text-[11px] font-mono opacity-80 break-words leading-relaxed select-all">
+                                {actualPrompt.trim()}
+                            </div>
+                        </div>
+                    )}
                     {hasReferenceImage ? (
                         <label className="chat-generated-image-prompt-check">
                             <input
@@ -1352,6 +1362,7 @@ function ImageBubble({
                     useReferenceImage={useReferenceDraft}
                     onUseReferenceImageChange={setUseReferenceDraft}
                     hasReferenceImage={hasRef}
+                    actualPrompt={msg.mediaData?.imageGenerationPrompt}
                     onConfirm={handleRetry}
                     onCancel={() => setShowPromptEditor(false)}
                     busy={regenerating}
@@ -2121,6 +2132,7 @@ function MediaFileBubble({
                         useReferenceImage={imageUseReferenceDraft}
                         onUseReferenceImageChange={setImageUseReferenceDraft}
                         hasReferenceImage={hasRef}
+                        actualPrompt={msg.mediaData?.imageGenerationPrompt}
                         onConfirm={handleRegenerateImage}
                         onCancel={() => setShowImagePromptEditor(false)}
                         busy={imageRegenerating}

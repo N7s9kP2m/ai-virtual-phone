@@ -3,6 +3,8 @@ import { loadImageGenerationSettings, DEFAULT_NOVELAI_PRESET } from "./settings-
 import JSZip from "jszip";
 import { getChatImageFromIndexedDB } from "./chat-asset-storage";
 import { storeMediaBlob } from "./media-cache-storage";
+import { translatePromptToTags } from "./image-prompt-translator";
+import { loadCharacters } from "./character-storage";
 import { throwIfAborted } from "./abort-utils";
 import {
   NOVELAI_COMMON_MODELS,
@@ -344,6 +346,7 @@ async function generateImageDirect(params: {
     form.set("prompt", prompt);
     if (settings.size && settings.size !== "auto") form.set("size", settings.size);
     if (settings.quality && settings.quality !== "auto") form.set("quality", settings.quality);
+    if (settings.negativePrompt?.trim()) form.set("negative_prompt", settings.negativePrompt.trim());
     form.append("image", converted.blob, `reference.${imageExtension(converted.mimeType)}`);
     body = form;
   } else {
@@ -353,6 +356,7 @@ async function generateImageDirect(params: {
       prompt,
       ...(settings.size && settings.size !== "auto" ? { size: settings.size } : {}),
       ...(settings.quality && settings.quality !== "auto" ? { quality: settings.quality } : {}),
+      ...(settings.negativePrompt?.trim() ? { negative_prompt: settings.negativePrompt.trim() } : {}),
     });
   }
 
@@ -737,6 +741,33 @@ export async function generateImageFromConfiguredApi(params: {
   const description = params.description.trim();
   if (!description) return null;
 
+  // 1. 读取角色档案，提取固定外貌特征 Tag（若存在）
+  let characterTags = "";
+  if (params.characterId) {
+    try {
+      const chars = loadCharacters();
+      const char = chars.find(c => c.id === params.characterId);
+      if (char?.imageTags?.trim()) {
+        characterTags = char.imageTags.trim();
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. 智能转译：将中文/自然语言长句转译为标准 Danbooru/SD 英文 Tag
+  let tagPrompt = description;
+  try {
+    tagPrompt = await translatePromptToTags(description, params.characterId, { signal: params.signal });
+  } catch {
+    tagPrompt = description;
+  }
+
+  // 3. 强置顶注入：将角色特征置于提示词最前，锁定发型发色眼瞳
+  const basePromptWithChar = characterTags
+    ? (tagPrompt ? `${characterTags}, ${tagPrompt}` : characterTags)
+    : tagPrompt;
+
   // NovelAI 模式
   if (settings.provider === "novelai") {
     const naiApiKey = settings.novelai?.apiKey?.trim();
@@ -749,7 +780,7 @@ export async function generateImageFromConfiguredApi(params: {
 
     const positiveParts: string[] = [];
     if (activePreset.positivePrompt?.trim()) positiveParts.push(activePreset.positivePrompt.trim());
-    if (description) positiveParts.push(description);
+    if (basePromptWithChar) positiveParts.push(basePromptWithChar);
     const fullPrompt = positiveParts.join(", ");
 
     const data = settings.requestMode === "direct"
@@ -769,7 +800,7 @@ export async function generateImageFromConfiguredApi(params: {
       mimeType,
       prompt: fullPrompt,
       usedReferenceImage: false,
-      revisedPrompt: data.revisedPrompt,
+      revisedPrompt: data.revisedPrompt || basePromptWithChar,
     };
   }
 
@@ -788,7 +819,9 @@ export async function generateImageFromConfiguredApi(params: {
     ? await normalizeReferenceImageForEdit(rawReferenceImageDataUrl)
     : null;
   throwIfAborted(params.signal);
-  const prompt = mergePrompt(description, openaiSettings.extraPrompt);
+  const prompt = openaiSettings.extraPrompt?.trim()
+    ? `${basePromptWithChar}, ${openaiSettings.extraPrompt.trim()}`
+    : basePromptWithChar;
 
   const data = openaiSettings.requestMode === "direct"
     ? await generateImageDirect({ settings: openaiSettings, prompt, referenceImageDataUrl, signal: params.signal })
@@ -807,7 +840,7 @@ export async function generateImageFromConfiguredApi(params: {
     mimeType,
     prompt,
     usedReferenceImage: Boolean(referenceImageDataUrl),
-    revisedPrompt: data.revisedPrompt,
+    revisedPrompt: data.revisedPrompt || basePromptWithChar,
   };
 }
 
