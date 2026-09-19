@@ -7,7 +7,7 @@
 //   ~强调~    → accent      其余     → narration（普通叙述）
 // 状态栏块 [状态栏]...[/状态栏] 在解析正文前剥离，交给沙盒 iframe 渲染。
 // 另外两种"块"：独立成段、从 < 开头的 HTML 片段，以及 ``` 围起来的代码块——
-// HTML（含 ```html）交给沙盒框就地渲染，对白按钮由富文本桥识别；其他代码按等宽块显示。
+// HTML（含 ```html）交给沙盒框就地渲染，其他代码按等宽块显示；块内不做标记解析。
 
 import type { MixFilterRule } from "./types";
 
@@ -231,6 +231,37 @@ const HTML_TAG_RE = /<(\/?)([a-zA-Z][\w-]*)[^<>]*?(\/?)>/g;
 const VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
 const HTML_LANGS = new Set(["html", "htm", "xml", "svg"]);
 
+/**
+ * 酒馆预设会用 ```html...``` 或 ```...<!DOCTYPE html>...``` 包住可渲染内容。
+ * 显示正则互相嵌套时，这些围栏也可能落进另一段 HTML，必须在分块前拆掉，
+ * 否则 iframe 会把反引号和 DOCTYPE 当正文显示。普通代码围栏保持原样。
+ */
+function unwrapHtmlFences(input: string): string {
+    const openRe = /```(?:(?:html?|xml|svg)\b[ \t]*(?:\r?\n)?|[ \t]*(?:\r?\n)?(?=[ \t]*(?:<!doctype\s+html\b|<html\b|<svg\b|<\?xml\b)))/gi;
+    let output = "";
+    let cursor = 0;
+    let open: RegExpExecArray | null;
+
+    while ((open = openRe.exec(input)) !== null) {
+        const closeIndex = input.indexOf("```", openRe.lastIndex);
+        if (closeIndex < 0) break;
+
+        output += input.slice(cursor, open.index);
+        if (output && !/\r?\n$/.test(output)) output += "\n";
+
+        const body = input.slice(openRe.lastIndex, closeIndex)
+            .replace(/^[ \t]*\r?\n?/, "")
+            .replace(/^[ \t]*<!doctype\s+html\s*>[ \t]*\r?\n?/i, "")
+            .replace(/\r?\n?[ \t]*$/, "");
+        output += `${body}\n`;
+
+        cursor = closeIndex + 3;
+        openRe.lastIndex = cursor;
+    }
+
+    return cursor ? output + input.slice(cursor) : input;
+}
+
 /** 这一行让标签深度变化了多少 */
 function tagDepthDelta(line: string): number {
     let delta = 0;
@@ -274,14 +305,12 @@ function closeBlock(paragraphs: MixProseParagraph[], block: OpenBlock): void {
 export function parseMixProse(text: string, options: MixProseParseOptions = {}): MixProseParagraph[] {
     const paragraphs: MixProseParagraph[] = [];
     let block: OpenBlock | null = null;
-    // 预处理：清洗 AI 常用的包装标签（如小金/酒馆预设的 <zw>、思维链 <think>、以及 <u> 下划线修饰标签），
-    // 避免关闭预设正则后正文被误识别为裸 HTML 块沙盒而丢失小说级段落排版（首行两字缩进与空行）
-    const sanitized = String(text ?? "")
+    const normalized = unwrapHtmlFences(String(text ?? ""))
         .replace(/<think>[\s\S]*?<\/think>/gi, "")
         .replace(/<\/?think\b[^>]*>?/gi, "")
         .replace(/<\/?zw\b[^>]*>?/gi, "")
         .replace(/<\/?u\b[^>]*>?/gi, "");
-    for (const rawLine of sanitized.split(/\r?\n/)) {
+    for (const rawLine of normalized.split(/\r?\n/)) {
         const line = rawLine.trim();
         if (block?.kind === "code") {
             if (/^```/.test(line)) { closeBlock(paragraphs, block); block = null; }
