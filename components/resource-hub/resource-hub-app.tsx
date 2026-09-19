@@ -57,7 +57,7 @@ import { displayOrderPrompts } from "@/lib/preset-entry-import";
 import type { Prompt, PresetConfig } from "@/lib/settings-types";
 // 标题栏图标用 lucide 矢量图：⚙/⟳ 这些字符在 iOS 上会被当彩色 emoji 画、
 // 或者字形本身偏小，各设备长相不一；矢量图标则处处一致且小尺寸清晰。
-import { RotateCw, Settings, X } from "lucide-react";
+import { ChevronLeft, Plus, RotateCw, Settings, X } from "lucide-react";
 import { deleteShareEntry } from "@/lib/resource-hub-review";
 import { MediaPreviewOverlay } from "@/components/chat/media-preview-overlay";
 import { fetchFlowerCounts, hasSentFlowerToday, sendFlower, type FlowerCounts } from "@/lib/resource-hub-flowers";
@@ -766,30 +766,55 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
 
     return (
         <div className="rh-root page-shell">
-            {/* 窗口标题栏 */}
             <div className="rh-window">
+                {/* 现代移动端顶部导航栏 */}
                 <div className="rh-titlebar">
-                    <span className="rh-titlebar-icon">🗂️</span>
-                    <span className="rh-titlebar-text"><RichText text={title} mode="sticker" /> - 资源集市</span>
-                    <span className="rh-titlebar-controls">
-                        <button className="rh-tb-btn" aria-label="资源仓库设置" onClick={() => { setSourceDraft(source); setShowSourceEditor(true); }}><Settings size={15} strokeWidth={2.25} /></button>
-                        <button className="rh-tb-btn" aria-label="刷新" disabled={loadState === "loading"} onClick={() => reload(source, { purge: true })}>
-                            {loadState === "loading" ? <PixelHourglass size={13} /> : <RotateCw size={15} strokeWidth={2.25} />}
+                    <button className="rh-back-btn" onClick={handleBack} aria-label="返回">
+                        <ChevronLeft size={20} />
+                    </button>
+                    <div className="rh-titlebar-text">
+                        <RichText text={title} mode="sticker" />
+                    </div>
+                    <div className="rh-titlebar-controls">
+                        <button className="rh-tb-btn rh-tb-upload" aria-label="上传资源" onClick={() => setConfirmUpload(true)}>
+                            <Plus size={15} /> 上传
                         </button>
-                        <button className="rh-tb-btn" aria-label="关闭" onClick={onClose}><X size={15} strokeWidth={2.75} /></button>
-                    </span>
+                        <button className="rh-tb-btn" aria-label="资源仓库设置" onClick={() => { setSourceDraft(source); setShowSourceEditor(true); }}>
+                            <Settings size={16} strokeWidth={2} />
+                        </button>
+                        <button className="rh-tb-btn" aria-label="刷新" disabled={loadState === "loading"} onClick={() => reload(source, { purge: true })}>
+                            {loadState === "loading" ? <PixelHourglass size={14} /> : <RotateCw size={16} strokeWidth={2} />}
+                        </button>
+                        <button className="rh-tb-btn rh-tb-close" aria-label="关闭" onClick={onClose}>
+                            <X size={16} strokeWidth={2.5} />
+                        </button>
+                    </div>
                 </div>
 
-                {/* 工具条（返回/地址） */}
-                <div className="rh-toolbar">
-                    <button className="rh-btn" onClick={handleBack}>← 返回</button>
-                    <span className="rh-address">
-                        地址：C:\资源集市{viewMode === "mine" ? "\\我的货摊" : viewMode === "build" ? "\\共同建设" : ""}{activeFolder ? `\\${activeFolder}` : ""}{activeEntry ? `\\${activeEntry.name}` : ""}
-                    </span>
-                    <button className="rh-btn" onClick={() => setConfirmUpload(true)}>上传</button>
-                </div>
+                {/* 现代面包屑导航（当进入文件夹或条目时展示，取代古早 C:\ 路径条） */}
+                {(activeFolder || activeEntry) && (
+                    <div className="rh-breadcrumb">
+                        <button type="button" className="rh-crumb-item" onClick={() => { setActiveEntry(null); setActiveFolder(null); }}>
+                            集市
+                        </button>
+                        {activeFolder && (
+                            <>
+                                <span className="rh-crumb-sep">/</span>
+                                <button type="button" className="rh-crumb-item" onClick={() => setActiveEntry(null)}>
+                                    {activeFolder}
+                                </button>
+                            </>
+                        )}
+                        {activeEntry && (
+                            <>
+                                <span className="rh-crumb-sep">/</span>
+                                <span className="rh-crumb-current">{activeEntry.name}</span>
+                            </>
+                        )}
+                    </div>
+                )}
 
-                {/* 浏览集市 / 我的货摊 切换 */}
+                {/* 浏览集市 / 我的货摊 / 共同建设 现代分段选择器 */}
                 {!activeEntry && (
                     <div className="rh-tabs">
                         <button className="rh-tab" data-active={viewMode === "market" ? "1" : undefined}
@@ -1791,39 +1816,64 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
             )}
 
             <style>{`
+                /* ═══════════════════════════════════════════
+                   资源集市 · 现代 iOS 移动端卡片设计系统
+                   ═══════════════════════════════════════════ */
                 .rh-root {
                     position: absolute;
                     inset: 0;
-                    background: #008080;
-                    padding: calc(var(--status-bar-top, 12px) + 48px) 10px 16px;
+                    background: #f7f8fb;
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+                    color: #1a1c22;
+                    z-index: 30;
                 }
-                .rh-root, .rh-root button, .rh-root input {
-                    font-family: "Microsoft YaHei", "PingFang SC", Tahoma, "MS Sans Serif", sans-serif;
+                .rh-root button, .rh-root input, .rh-root select, .rh-root textarea {
+                    font-family: inherit;
                 }
                 .rh-window {
                     flex: 1;
                     min-height: 0;
                     display: flex;
                     flex-direction: column;
-                    background: #c0c0c0;
-                    border: 2px solid;
-                    border-color: #ffffff #404040 #404040 #ffffff;
-                    box-shadow: 1px 1px 0 #000;
+                    background: #f7f8fb;
+                    border: none;
+                    box-shadow: none;
                 }
+                /* ── 顶部 Header ── */
                 .rh-titlebar {
                     display: flex;
                     align-items: center;
-                    gap: 6px;
-                    padding: 3px 4px 3px 6px;
-                    background: linear-gradient(90deg, #000080, #1084d0);
-                    color: #fff;
-                    font-size: calc(13px * var(--app-text-scale, 1));
-                    font-weight: 700;
-                    user-select: none;
+                    gap: 10px;
+                    padding: 0 14px;
+                    height: var(--page-header-content-height, 46px);
+                    margin-top: var(--page-header-safe-top, 48px);
+                    background: rgba(255, 255, 255, 0.90);
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
+                    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+                    color: #1a1c22;
                     flex-shrink: 0;
+                    z-index: 25;
+                }
+                .rh-back-btn {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    border: none;
+                    background: rgba(0, 0, 0, 0.04);
+                    color: #1a1c22;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: background 0.18s;
+                    flex-shrink: 0;
+                }
+                .rh-back-btn:active {
+                    background: rgba(0, 0, 0, 0.1);
                 }
                 .rh-titlebar-text {
                     flex: 1;
@@ -1831,192 +1881,260 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
+                    font-size: calc(16px * var(--app-text-scale, 1));
+                    font-weight: 700;
+                    letter-spacing: -0.01em;
                 }
-                .rh-titlebar-controls { display: flex; gap: 3px; }
+                .rh-titlebar-controls {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
                 .rh-tb-btn {
-                    width: 28px;
-                    height: 24px;
+                    height: 32px;
+                    min-width: 32px;
+                    padding: 0 8px;
+                    border-radius: 16px;
                     display: inline-flex;
                     align-items: center;
                     justify-content: center;
-                    background: #c0c0c0;
-                    color: #000;
-                    font-size: 15px;
-                    border: 2px solid;
-                    border-color: #ffffff #404040 #404040 #ffffff;
+                    background: rgba(0, 0, 0, 0.04);
+                    color: #444752;
+                    border: none;
                     cursor: pointer;
-                    padding: 0;
+                    font-size: 13px;
+                    transition: background 0.18s, transform 0.12s;
                 }
-                .rh-tb-btn:active { border-color: #404040 #ffffff #ffffff #404040; }
-                .rh-toolbar {
+                .rh-tb-btn:active {
+                    background: rgba(0, 0, 0, 0.1);
+                    transform: scale(0.96);
+                }
+                .rh-tb-upload {
+                    background: #007aff;
+                    color: #ffffff;
+                    font-weight: 600;
+                    gap: 4px;
+                    padding: 0 12px;
+                }
+                .rh-tb-upload:active {
+                    background: #0062cc;
+                }
+                .rh-tb-close:active {
+                    background: rgba(220, 40, 40, 0.12);
+                    color: #dc2828;
+                }
+
+                /* ── 面包屑路径条 ── */
+                .rh-breadcrumb {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
-                    padding: 5px 6px;
-                    border-bottom: 1px solid #808080;
-                    box-shadow: 0 1px 0 #fff;
+                    gap: 5px;
+                    padding: 8px 14px 2px;
+                    font-size: calc(12px * var(--app-text-scale, 1));
+                    color: #717582;
                     flex-shrink: 0;
                 }
-                .rh-address {
-                    flex: 1;
-                    min-width: 0;
-                    background: #fff;
-                    border: 2px solid;
-                    border-color: #404040 #ffffff #ffffff #404040;
+                .rh-crumb-item {
+                    background: none;
+                    border: none;
                     padding: 3px 6px;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    color: #000;
+                    border-radius: 6px;
+                    color: #007aff;
+                    cursor: pointer;
+                    font-weight: 600;
+                }
+                .rh-crumb-item:active {
+                    background: rgba(0, 122, 255, 0.08);
+                }
+                .rh-crumb-sep {
+                    color: #c0c4d0;
+                    font-size: 11px;
+                }
+                .rh-crumb-current {
+                    color: #1a1c22;
+                    font-weight: 600;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
+                    max-width: 180px;
                 }
-                .rh-btn {
-                    background: #c0c0c0;
-                    color: #000;
-                    font-size: calc(12px * var(--app-text-scale, 1));
-                    padding: 4px 12px;
-                    border: 2px solid;
-                    border-color: #ffffff #404040 #404040 #ffffff;
-                    cursor: pointer;
-                    white-space: nowrap;
-                }
-                .rh-btn:active { border-color: #404040 #ffffff #ffffff #404040; }
-                /* 忙碌态：按钮里的沙漏与文字并排居中 */
-                .rh-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
-                .rh-btn:disabled { color: #808080; text-shadow: 1px 1px 0 #fff; cursor: default; }
-                .rh-btn-primary { font-weight: 700; outline: 1px solid #000; }
-                /* 浏览集市 / 我的货摊 切换（仿 Win98 标签页按钮） */
+
+                /* ── 分段选项卡（浏览集市 / 我的货摊 / 共同建设） ── */
                 .rh-tabs {
                     display: flex;
-                    gap: 4px;
-                    padding: 5px 6px 0;
+                    gap: 6px;
+                    padding: 8px 14px 4px;
                     flex-shrink: 0;
                 }
                 .rh-tab {
                     flex: 1;
-                    padding: 5px 0;
-                    background: #b0b0b0;
-                    color: #404040;
-                    font-size: calc(12px * var(--app-text-scale, 1));
-                    border: 2px solid;
-                    border-color: #ffffff #404040 #404040 #ffffff;
+                    padding: 8px 0;
+                    background: rgba(0, 0, 0, 0.05);
+                    color: #606470;
+                    font-size: calc(13px * var(--app-text-scale, 1));
+                    font-weight: 600;
+                    border: none;
+                    border-radius: 12px;
                     cursor: pointer;
+                    transition: all 0.2s;
                 }
                 .rh-tab[data-active] {
-                    background: #fff;
-                    color: #000080;
-                    font-weight: 700;
-                    border-color: #404040 #ffffff #ffffff #404040;
+                    background: #ffffff;
+                    color: #007aff;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
                 }
+
+                /* ── 主体滚动区 ── */
                 .rh-body {
                     flex: 1;
                     min-height: 0;
                     overflow-y: auto;
-                    background: #fff;
-                    border: 2px solid;
-                    border-color: #404040 #ffffff #ffffff #404040;
-                    margin: 6px;
-                    color: #000;
+                    background: transparent;
+                    border: none;
+                    margin: 0;
+                    padding: 6px 14px 24px;
+                    color: #1a1c22;
                 }
                 .rh-center-hint {
-                    padding: 42px 20px;
+                    padding: 50px 20px;
                     text-align: center;
-                    color: #404040;
-                    font-size: calc(12px * var(--app-text-scale, 1));
+                    color: #717582;
+                    font-size: calc(13px * var(--app-text-scale, 1));
                     line-height: 1.8;
                 }
-                /* 首页文件夹网格：一行两个 */
+
+                /* ── 搜索框 ── */
+                .rh-search-row {
+                    display: flex;
+                    gap: 8px;
+                    padding: 8px 0 12px;
+                }
+                .rh-input.rh-search-input {
+                    flex: 1;
+                    min-width: 0;
+                    height: 38px;
+                    padding: 0 14px;
+                    border-radius: 19px;
+                    border: 1px solid rgba(0, 0, 0, 0.08);
+                    background: #ffffff;
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+                    font-size: calc(13px * var(--app-text-scale, 1));
+                    color: #1a1c22;
+                    outline: none;
+                    transition: border-color 0.2s, box-shadow 0.2s;
+                }
+                .rh-input.rh-search-input:focus {
+                    border-color: #007aff;
+                    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+                }
+
+                /* ── 首页分类文件夹网格 ── */
                 .rh-folder-grid {
                     display: grid;
                     grid-template-columns: 1fr 1fr;
-                    gap: 4px;
-                    padding: 10px;
+                    gap: 12px;
+                    padding: 4px 0 12px;
                 }
                 .rh-folder {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 2px;
-                    padding: 14px 6px 10px;
-                    background: none;
-                    border: 1px dotted transparent;
+                    gap: 6px;
+                    padding: 18px 12px 16px;
+                    background: #ffffff;
+                    border-radius: 18px;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
                     cursor: pointer;
+                    transition: transform 0.16s, box-shadow 0.16s;
                 }
-                .rh-folder:active { border-color: #000080; background: #e4ecf7; }
-                .rh-folder-icon { font-size: 40px; line-height: 1; }
-                .rh-build { display: flex; flex-direction: column; gap: 12px; padding: 6px 2px; }
-                .rh-build-intro { padding: 14px 8px 6px; text-align: center; }
-                .rh-build-stickers { font-size: 19px; letter-spacing: 7px; margin-bottom: 8px; }
-                .rh-build-title { font-weight: 800; font-size: 16px; color: #000080; margin-bottom: 7px; }
-                .rh-build-intro p { margin: 0; font-size: 12.5px; line-height: 1.9; color: #333; }
-                .rh-build-intro p b { color: #000080; }
-                .rh-build-intro p b.rh-build-hot { color: #cc0000; }
-                .rh-build-note { font-size: 11px; color: #888; margin-top: 7px; }
-                .rh-build-wall-head { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
-                .rh-build-wall-line { flex: 1; height: 0; border-top: 1px solid #808080; box-shadow: 0 1px 0 #fff; }
-                .rh-build-wall-title { font-weight: 800; font-size: 13px; color: #000080; white-space: nowrap; }
-                .rh-build-wall-sub { text-align: center; font-size: 11px; color: #666; margin-top: -6px; }
-                .rh-build-wall { display: flex; flex-direction: column; gap: 8px; }
-                .rh-build-card {
-                    display: flex; align-items: center; gap: 10px;
-                    border: 1px solid #b8bfc9;
-                    background: #fff;
-                    padding: 10px 10px;
+                .rh-folder:active {
+                    transform: scale(0.97);
+                    background: #fcfdfe;
                 }
-                .rh-build-card-medal { font-size: 22px; line-height: 1; flex: none; }
-                .rh-build-card-main { flex: 1; min-width: 0; }
-                .rh-build-card-title { font-size: 12.5px; font-weight: 700; line-height: 1.5; color: #000; }
-                .rh-build-card-meta { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; margin-top: 4px; }
-                .rh-build-card-name { font-weight: 700; color: #000080; }
-                .rh-build-card-date { color: #555; }
+                .rh-folder-icon {
+                    font-size: 38px;
+                    line-height: 1;
+                    filter: drop-shadow(0 4px 8px rgba(0, 122, 255, 0.12));
+                }
                 .rh-folder-name {
-                    font-size: calc(13px * var(--app-text-scale, 1));
-                    color: #000;
+                    font-size: calc(14px * var(--app-text-scale, 1));
+                    font-weight: 700;
+                    color: #1a1c22;
+                    text-align: center;
                     word-break: break-all;
                 }
-                .rh-folder-count { font-size: calc(10px * var(--app-text-scale, 1)); color: #808080; }
-                /* 论坛式条目列表 */
-                .rh-entry-list { display: flex; flex-direction: column; }
+                .rh-folder-count {
+                    font-size: calc(11px * var(--app-text-scale, 1));
+                    color: #888d9c;
+                    background: rgba(0, 0, 0, 0.04);
+                    padding: 2px 8px;
+                    border-radius: 10px;
+                }
+
+                /* ── 资源条目卡片流 ── */
+                .rh-entry-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    padding: 4px 0;
+                }
                 .rh-entry {
                     display: flex;
                     align-items: flex-start;
-                    gap: 10px;
-                    padding: 10px;
-                    background: none;
-                    border: none;
-                    border-bottom: 1px solid #d4d0c8;
+                    gap: 12px;
+                    padding: 14px;
+                    background: #ffffff;
+                    border-radius: 18px;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
                     cursor: pointer;
                     text-align: left;
+                    transition: transform 0.16s, box-shadow 0.16s;
                 }
-                .rh-entry:active { background: #e4ecf7; }
-                .rh-entry-pending { cursor: default; opacity: 0.72; }
-                .rh-entry-pending:active { background: none; }
-                .rh-entry-pending .rh-entry-title { color: #404040; text-decoration: none; }
+                .rh-entry:active {
+                    transform: scale(0.985);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+                }
+                .rh-entry-pending {
+                    opacity: 0.72;
+                    cursor: default;
+                }
                 .rh-entry-thumb {
-                    width: 52px;
-                    height: 52px;
+                    width: 58px;
+                    height: 58px;
                     flex-shrink: 0;
                     object-fit: cover;
-                    border: 1px solid #808080;
-                    background: #f4f4f4;
+                    border-radius: 12px;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                    background: #f0f2f6;
                 }
                 .rh-entry-thumb-blank {
                     display: inline-flex;
                     align-items: center;
                     justify-content: center;
-                    font-size: 24px;
+                    font-size: 26px;
                 }
-                .rh-entry-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+                .rh-entry-main {
+                    flex: 1;
+                    min-width: 0;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                }
                 .rh-entry-title {
-                    font-size: calc(13px * var(--app-text-scale, 1));
-                    color: #000080;
+                    font-size: calc(14px * var(--app-text-scale, 1));
+                    color: #1a1c22;
                     font-weight: 700;
-                    text-decoration: underline;
                     word-break: break-all;
+                    transition: color 0.18s;
+                }
+                .rh-entry:active .rh-entry-title {
+                    color: #007aff;
                 }
                 .rh-entry-desc {
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    color: #404040;
+                    font-size: calc(12px * var(--app-text-scale, 1));
+                    color: #606470;
                     line-height: 1.5;
                     display: -webkit-box;
                     -webkit-line-clamp: 2;
@@ -2024,301 +2142,127 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     overflow: hidden;
                     white-space: pre-line;
                 }
-                .rh-entry-meta { font-size: calc(10px * var(--app-text-scale, 1)); color: #808080; }
-                /* 详情：上=图文内容区（内部滚动），下=横滑文件条 + 操作按钮（钉底） */
-                .rh-body-detail { overflow: hidden; display: flex; }
+                .rh-entry-meta {
+                    font-size: calc(11px * var(--app-text-scale, 1));
+                    color: #8c909e;
+                    margin-top: 2px;
+                }
+
+                /* ── 详情页排版 ── */
+                .rh-body-detail {
+                    padding: 10px 14px 20px;
+                }
                 .rh-detail2 {
                     flex: 1;
-                    /* min-width 不能省：外层 .rh-body-detail 是横向 flex，本项默认 min-width:auto
-                       不许缩到内容最小宽以下，而文件条的格子全部 flex-shrink:0，文件一多（4 个起）
-                       最小内容宽就超过容器，把整列撑爆——正文按撑爆后的宽度换行、右侧被裁，
-                       文件条 clientWidth==scrollWidth 变得根本没有可滚区间。 */
                     min-width: 0;
                     min-height: 0;
                     display: flex;
                     flex-direction: column;
+                    background: #ffffff;
+                    border-radius: 20px;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.05);
+                    overflow: hidden;
                 }
                 .rh-detail2-main {
                     flex: 1;
                     min-height: 0;
                     overflow-y: auto;
-                    padding: 10px;
+                    padding: 16px;
                     display: flex;
                     flex-direction: column;
-                    gap: 10px;
+                    gap: 12px;
                 }
-                .rh-detail2-imgwrap {
-                    display: flex;
-                    justify-content: center;
-                    -webkit-tap-highlight-color: rgba(0, 0, 128, 0.15);
-                }
-                /* 只作用于配图；写成 .rh-detail2-main img 会连作者头像一起套住，
-                   头像格子才 36px 宽，88% 一算就缩成 31px，右边空出一条 */
-                .rh-detail2-imgwrap img {
-                    max-width: min(300px, 88%);
-                    max-height: 360px;
-                    width: auto;
-                    height: auto;
-                    align-self: center;
-                    border: 1px solid #808080;
-                    pointer-events: none;
-                }
-                /* 发帖式排版：标题字号更大更粗，下带分隔线 */
-                .rh-detail2-title {
-                    font-size: calc(16px * var(--app-text-scale, 1));
-                    font-weight: 700;
-                    color: #000;
-                    line-height: 1.4;
-                    word-break: break-all;
-                    padding-bottom: 8px;
-                    border-bottom: 1px solid #d4d0c8;
-                }
-                /* 详情页第一行：头像 + 昵称/时间 + 作者操作 */
                 .rh-detail2-head {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
-                }
-                .rh-detail2-head-main { flex: 1; min-width: 0; }
-                .rh-detail2-author {
-                    font-size: calc(12px * var(--app-text-scale, 1));
-                    font-weight: 700;
-                    color: #000080;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                }
-                .rh-detail2-time { font-size: calc(10px * var(--app-text-scale, 1)); color: #808080; }
-                .rh-detail2-head-actions { display: flex; gap: 4px; flex-shrink: 0; }
-                .rh-icon-btn {
-                    width: 26px;
-                    height: 24px;
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 13px;
-                    background: #c0c0c0;
-                    color: #000;
-                    border: 2px solid;
-                    border-color: #ffffff #404040 #404040 #ffffff;
-                    cursor: pointer;
-                    padding: 0;
-                }
-                .rh-icon-btn:active { border-color: #404040 #ffffff #ffffff #404040; }
-                .rh-icon-btn-danger { color: #a01818; }
-                /* 头像：矩形，带凹边框 */
-                .rh-avatar {
-                    display: inline-block;
-                    flex-shrink: 0;
-                    overflow: hidden;
-                    background: #dcd8d0;
-                    border: 2px solid;
-                    border-color: #404040 #ffffff #ffffff #404040;
-                }
-                .rh-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-                /* 我的货摊资料卡 */
-                .rh-profile-card {
-                    display: flex;
-                    align-items: center;
                     gap: 10px;
-                    padding: 10px;
-                    background: #ececec;
-                    border-bottom: 1px solid #808080;
                 }
-                .rh-profile-avatar { position: relative; cursor: pointer; display: inline-block; }
-                .rh-profile-avatar-hint {
-                    position: absolute;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    text-align: center;
-                    font-size: calc(9px * var(--app-text-scale, 1));
-                    color: #fff;
-                    background: rgba(0, 0, 0, 0.55);
-                    padding: 1px 0;
+                .rh-detail2-head-main {
+                    flex: 1;
+                    min-width: 0;
                 }
-                .rh-profile-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-                .rh-profile-nickname {
-                    align-self: flex-start;
-                    max-width: 100%;
-                    background: none;
-                    border: none;
-                    padding: 0;
+                .rh-detail2-author {
                     font-size: calc(14px * var(--app-text-scale, 1));
                     font-weight: 700;
-                    color: #000080;
-                    cursor: pointer;
-                    text-align: left;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
+                    color: #1a1c22;
                 }
-                .rh-profile-edit-hint { font-size: calc(11px * var(--app-text-scale, 1)); color: #808080; }
-                .rh-profile-nickname-input { font-size: calc(13px * var(--app-text-scale, 1)); }
-                .rh-profile-stats {
+                .rh-detail2-time {
+                    font-size: calc(11px * var(--app-text-scale, 1));
+                    color: #888d9c;
+                }
+                .rh-detail2-head-actions {
                     display: flex;
-                    flex-wrap: wrap;
-                    gap: 10px;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    color: #404040;
+                    gap: 6px;
+                    flex-shrink: 0;
                 }
-                .rh-profile-stats b { color: #000; font-size: calc(13px * var(--app-text-scale, 1)); }
-                /* 摊主钥匙 */
-                .rh-key-link {
-                    background: none;
-                    border: none;
-                    padding: 0;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    color: #000080;
-                    text-decoration: underline;
-                    cursor: pointer;
-                }
-                .rh-profile-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-                .rh-profile-name-row .rh-key-link { margin-left: auto; flex: none; }
-                .rh-profile-name-row .rh-profile-nickname { min-width: 0; }
-                .rh-profile-name-row .rh-profile-nickname-input { flex: 1; min-width: 0; }
-                .rh-profile-stats .rh-key-link { margin-left: auto; }
-                .rh-claim-files { display: flex; flex-wrap: wrap; gap: 4px; }
-                .rh-claim-file {
-                    background: #fff;
-                    border: 1px solid #b8bfc9;
-                    padding: 3px 8px;
-                    font-size: 11px;
-                    cursor: pointer;
-                    max-width: 100%;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                }
-                .rh-file-pick-btn { align-self: flex-start; }
-                .rh-key-danger {
-                    color: #cc0000;
+                .rh-detail2-title {
+                    font-size: calc(17px * var(--app-text-scale, 1));
                     font-weight: 800;
-                    font-size: 14px;
-                    text-align: center;
-                }
-                .rh-key-backup-actions { display: flex; gap: 8px; }
-                .rh-key-backup-actions .rh-btn { flex: 1; }
-                .rh-key-warning {
-                    background: #ffffe1;
-                    border: 1px solid #808080;
-                    padding: 8px;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    line-height: 1.7;
-                    color: #000;
-                }
-                .rh-key-text {
-                    font-family: Consolas, "Courier New", monospace;
-                    font-size: calc(10px * var(--app-text-scale, 1));
+                    color: #1a1c22;
+                    line-height: 1.4;
                     word-break: break-all;
-                    resize: none;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
                 }
-                /* 已选文件清单（上传/编辑弹窗共用） */
-                .rh-picked-list { display: flex; flex-direction: column; gap: 3px; }
-                .rh-picked {
-                    display: flex;
-                    align-items: center;
-                    gap: 6px;
-                    padding: 4px 6px;
-                    background: #fff;
-                    border: 1px solid #808080;
-                }
-                .rh-picked-name {
-                    flex: 1;
-                    min-width: 0;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    color: #000;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                }
-                .rh-picked-size {
-                    font-size: calc(10px * var(--app-text-scale, 1));
-                    color: #808080;
-                    flex-shrink: 0;
-                }
-                .rh-picked-x {
-                    flex-shrink: 0;
-                    width: 18px;
-                    height: 18px;
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 0;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    color: #a01818;
-                    background: none;
-                    border: none;
-                    cursor: pointer;
-                }
-                /* 编辑弹窗的文件清单 */
-                .rh-edit-files { display: flex; flex-direction: column; gap: 3px; }
-                .rh-edit-file {
-                    display: flex;
-                    align-items: center;
-                    gap: 6px;
-                    padding: 4px 6px;
-                    background: #fff;
-                    border: 1px solid #808080;
-                    cursor: pointer;
-                    text-align: left;
-                }
-                .rh-edit-file[data-removed] { background: #f0d0d0; text-decoration: line-through; color: #a01818; }
-                .rh-edit-file-name {
-                    flex: 1;
-                    min-width: 0;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                }
-                .rh-edit-file-x { font-size: calc(11px * var(--app-text-scale, 1)); color: #a01818; flex-shrink: 0; }
                 .rh-detail2-desc {
-                    font-size: calc(12px * var(--app-text-scale, 1));
+                    font-size: calc(13px * var(--app-text-scale, 1));
                     line-height: 1.8;
                     white-space: pre-wrap;
-                    color: #000;
+                    color: #2c2e35;
                 }
-                .rh-detail2-desc-empty { color: #808080; }
+                .rh-detail2-desc-empty {
+                    color: #888d9c;
+                    font-style: italic;
+                }
+                .rh-detail2-imgwrap img {
+                    max-width: min(320px, 92%);
+                    max-height: 380px;
+                    width: auto;
+                    height: auto;
+                    align-self: center;
+                    border-radius: 14px;
+                    border: 1px solid rgba(0, 0, 0, 0.08);
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+                }
                 .rh-file-strip {
                     flex-shrink: 0;
                     display: flex;
-                    gap: 6px;
+                    gap: 8px;
                     overflow-x: auto;
-                    padding: 8px;
-                    background: #c0c0c0;
-                    border-top: 2px solid;
-                    border-color: #808080 transparent transparent transparent;
-                    box-shadow: inset 0 1px 0 #404040;
+                    padding: 10px 14px;
+                    background: #f7f9fc;
+                    border-top: 1px solid rgba(0, 0, 0, 0.06);
                 }
                 .rh-file-tile {
                     flex-shrink: 0;
-                    width: 84px;
+                    width: 90px;
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 2px;
-                    padding: 7px 4px 5px;
-                    background: #fff;
-                    border: 2px solid;
-                    border-color: #ffffff #404040 #404040 #ffffff;
+                    gap: 4px;
+                    padding: 8px 6px;
+                    background: #ffffff;
+                    border-radius: 12px;
+                    border: 1px solid rgba(0, 0, 0, 0.08);
                     cursor: pointer;
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+                    transition: all 0.16s;
                 }
                 .rh-file-tile[data-selected] {
-                    border-color: #000080;
-                    background: #e4ecf7;
-                    outline: 1px solid #000080;
+                    border-color: #007aff;
+                    background: rgba(0, 122, 255, 0.06);
+                    box-shadow: 0 0 0 2px #007aff;
                 }
                 .rh-file-tile-ext {
-                    font-size: calc(9px * var(--app-text-scale, 1));
+                    font-size: calc(10px * var(--app-text-scale, 1));
                     font-weight: 700;
-                    color: #000080;
-                    letter-spacing: 0.04em;
+                    color: #007aff;
                 }
                 .rh-file-tile-name {
                     max-width: 100%;
-                    font-size: calc(10px * var(--app-text-scale, 1));
-                    color: #000;
+                    font-size: calc(11px * var(--app-text-scale, 1));
+                    color: #1a1c22;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
@@ -2326,72 +2270,263 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                 .rh-detail2-actions {
                     flex-shrink: 0;
                     display: flex;
-                    gap: 8px;
-                    padding: 8px;
-                    background: #c0c0c0;
-                    border-top: 1px solid #fff;
+                    gap: 10px;
+                    padding: 12px 14px;
+                    background: #ffffff;
+                    border-top: 1px solid rgba(0, 0, 0, 0.06);
                 }
-                .rh-action-half { flex: 1; padding: 8px 0; }
-                .rh-action-del { color: #a01818; font-weight: 700; padding: 8px 10px; }
-                .rh-flower-btn { padding: 8px 8px; }
-                /* 我的货摊：花数汇总行 */
-                .rh-stall-flowers {
-                    padding: 8px 10px;
-                    font-size: calc(12px * var(--app-text-scale, 1));
-                    font-weight: 700;
-                    color: #a04060;
-                    background: #fff0f4;
-                    border-bottom: 1px solid #d4d0c8;
+                .rh-action-half {
+                    flex: 1;
+                    padding: 10px 0;
+                    font-size: 13px;
                 }
-                /* 非阻塞小提示 */
-                .rh-toast {
-                    position: absolute;
-                    left: 50%;
-                    bottom: 60px;
-                    transform: translateX(-50%);
-                    z-index: 70;
-                    background: #ffffe1;
-                    color: #000;
-                    font-size: calc(12px * var(--app-text-scale, 1));
-                    padding: 6px 16px;
-                    border: 1px solid #000;
-                    box-shadow: 2px 2px 0 #000;
-                    white-space: nowrap;
-                    pointer-events: none;
+                .rh-flower-btn {
+                    padding: 10px 14px;
+                    background: #fff0f5;
+                    color: #d82b6b;
+                    border: 1px solid rgba(216, 43, 107, 0.15);
                 }
-                .rh-search-row {
+                .rh-flower-btn:active {
+                    background: #ffe2ed;
+                }
+
+                /* ── 摊主个人名片 ── */
+                .rh-profile-card {
                     display: flex;
-                    gap: 6px;
-                    padding: 8px 10px 4px;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 16px;
+                    background: #ffffff;
+                    border-radius: 18px;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+                    margin-bottom: 12px;
                 }
-                /* 搜索框在白底上：右/下边也要有可见描边，不然和背景融为一体 */
-                .rh-input.rh-search-input {
+                .rh-profile-avatar {
+                    position: relative;
+                    cursor: pointer;
+                    display: inline-block;
+                }
+                .rh-profile-avatar-hint {
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 50%;
+                    font-size: 10px;
+                    color: #fff;
+                    background: rgba(0, 0, 0, 0.45);
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                }
+                .rh-profile-avatar:hover .rh-profile-avatar-hint,
+                .rh-profile-avatar:active .rh-profile-avatar-hint {
+                    opacity: 1;
+                }
+                .rh-avatar {
+                    display: inline-block;
+                    flex-shrink: 0;
+                    overflow: hidden;
+                    border-radius: 50%;
+                    background: #f0f2f6;
+                    border: 1px solid rgba(0, 0, 0, 0.08);
+                }
+                .rh-avatar img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                .rh-profile-main {
                     flex: 1;
                     min-width: 0;
-                    border-color: #404040 #808080 #808080 #404040;
-                    background: #fffff4;
-                }
-                .rh-statusbar {
                     display: flex;
-                    justify-content: space-between;
+                    flex-direction: column;
+                    gap: 6px;
+                }
+                .rh-profile-name-row {
+                    display: flex;
+                    align-items: center;
                     gap: 8px;
+                }
+                .rh-profile-nickname {
+                    font-size: calc(16px * var(--app-text-scale, 1));
+                    font-weight: 700;
+                    color: #1a1c22;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    padding: 0;
+                }
+                .rh-profile-stats {
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    font-size: calc(12px * var(--app-text-scale, 1));
+                    color: #717582;
+                }
+                .rh-profile-stats b {
+                    color: #1a1c22;
+                    font-size: calc(14px * var(--app-text-scale, 1));
+                }
+                .rh-key-link {
+                    background: rgba(0, 0, 0, 0.04);
+                    border: none;
                     padding: 3px 8px;
-                    font-size: calc(10px * var(--app-text-scale, 1));
-                    color: #000;
-                    border-top: 1px solid #fff;
-                    box-shadow: 0 -1px 0 #808080;
+                    border-radius: 8px;
+                    font-size: calc(11px * var(--app-text-scale, 1));
+                    color: #007aff;
+                    cursor: pointer;
+                    font-weight: 600;
+                }
+                .rh-stall-flowers {
+                    padding: 10px 14px;
+                    border-radius: 14px;
+                    font-size: calc(13px * var(--app-text-scale, 1));
+                    font-weight: 700;
+                    color: #c7255f;
+                    background: #fff0f5;
+                    margin-bottom: 10px;
+                }
+
+                /* ── 共同建设 ── */
+                .rh-build {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 14px;
+                    padding: 4px 0;
+                }
+                .rh-build-intro {
+                    padding: 16px;
+                    text-align: center;
+                    background: #ffffff;
+                    border-radius: 18px;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+                }
+                .rh-build-stickers {
+                    font-size: 22px;
+                    letter-spacing: 6px;
+                    margin-bottom: 6px;
+                }
+                .rh-build-title {
+                    font-weight: 800;
+                    font-size: 16px;
+                    color: #1a1c22;
+                    margin-bottom: 6px;
+                }
+                .rh-build-intro p {
+                    margin: 0;
+                    font-size: 12.5px;
+                    line-height: 1.8;
+                    color: #555966;
+                }
+                .rh-build-intro p b {
+                    color: #007aff;
+                }
+                .rh-build-intro p b.rh-build-hot {
+                    color: #e02424;
+                }
+                .rh-build-wall-title {
+                    font-weight: 800;
+                    font-size: 14px;
+                    color: #1a1c22;
+                }
+                .rh-build-wall-sub {
+                    text-align: center;
+                    font-size: 11px;
+                    color: #888d9c;
+                }
+                .rh-build-wall {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                .rh-build-card {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    background: #ffffff;
+                    border-radius: 16px;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.03);
+                    padding: 12px 14px;
+                }
+                .rh-build-card-medal {
+                    font-size: 24px;
                     flex-shrink: 0;
                 }
-                .rh-statusbar span {
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
+                .rh-build-card-title {
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: #1a1c22;
                 }
-                /* 对话框 */
+                .rh-build-card-name {
+                    font-weight: 700;
+                    color: #007aff;
+                }
+                .rh-build-card-date {
+                    color: #888d9c;
+                }
+
+                /* ── 按钮与弹层 ── */
+                .rh-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 5px;
+                    background: rgba(0, 0, 0, 0.05);
+                    color: #1a1c22;
+                    font-size: calc(13px * var(--app-text-scale, 1));
+                    font-weight: 600;
+                    padding: 8px 16px;
+                    border-radius: 12px;
+                    border: none;
+                    cursor: pointer;
+                    transition: all 0.16s;
+                }
+                .rh-btn:active {
+                    transform: scale(0.97);
+                    background: rgba(0, 0, 0, 0.09);
+                }
+                .rh-btn:disabled {
+                    opacity: 0.45;
+                    cursor: default;
+                }
+                .rh-btn-primary {
+                    background: #007aff;
+                    color: #ffffff;
+                }
+                .rh-btn-primary:active {
+                    background: #0062cc;
+                }
+                .rh-icon-btn {
+                    width: 30px;
+                    height: 30px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 50%;
+                    background: rgba(0, 0, 0, 0.04);
+                    color: #444752;
+                    border: none;
+                    cursor: pointer;
+                    transition: background 0.16s;
+                }
+                .rh-icon-btn:active {
+                    background: rgba(0, 0, 0, 0.1);
+                }
+                .rh-icon-btn-danger {
+                    color: #dc2828;
+                }
+
+                /* ── 弹窗抽屉 ── */
                 .rh-dialog-overlay {
                     position: absolute;
                     inset: 0;
-                    background: rgba(0, 0, 0, 0.3);
+                    background: rgba(0, 0, 0, 0.45);
+                    backdrop-filter: blur(6px);
+                    -webkit-backdrop-filter: blur(6px);
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -2399,190 +2534,182 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     padding: 20px;
                 }
                 .rh-dialog {
-                    width: min(340px, 92%);
-                    max-height: 76vh;
+                    width: 100%;
+                    max-width: 400px;
+                    max-height: 85vh;
                     display: flex;
                     flex-direction: column;
-                    background: #c0c0c0;
-                    border: 2px solid;
-                    border-color: #ffffff #404040 #404040 #ffffff;
-                    box-shadow: 2px 2px 0 #000;
+                    background: #ffffff;
+                    border-radius: 22px;
+                    border: 1px solid rgba(0, 0, 0, 0.08);
+                    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16);
+                    overflow: hidden;
                 }
                 .rh-dialog-body {
-                    padding: 14px 12px;
-                    font-size: calc(13px * var(--app-text-scale, 1));
-                    color: #000;
+                    flex: 1;
+                    min-height: 0;
                     overflow-y: auto;
+                    padding: 16px;
                     display: flex;
-                    align-items: center;
-                    gap: 10px;
+                    flex-direction: column;
+                    gap: 12px;
+                    font-size: calc(13px * var(--app-text-scale, 1));
+                    line-height: 1.6;
                 }
-                .rh-dialog-icon { font-size: 30px; }
-                .rh-notice-body { flex-direction: column; align-items: stretch; gap: 10px; line-height: 1.6; }
-                .rh-notice-body p { margin: 0; }
-                .rh-notice-no { font-weight: 700; margin-right: 2px; }
                 .rh-dialog-footer {
                     display: flex;
-                    justify-content: center;
                     gap: 10px;
-                    padding: 0 12px 12px;
+                    padding: 12px 16px;
+                    border-top: 1px solid rgba(0, 0, 0, 0.06);
+                    background: #fafbfe;
                 }
-                /* 导入弹窗：文件全名（不截断，允许换行） */
-                .rh-import-filename {
-                    padding: 8px 12px 0;
-                    font-size: calc(12px * var(--app-text-scale, 1));
-                    font-weight: 700;
-                    color: #000;
-                    word-break: break-all;
-                    line-height: 1.5;
+                .rh-dialog-footer .rh-btn {
+                    flex: 1;
+                    padding: 10px 0;
                 }
-                .rh-dest-list { flex-direction: column; align-items: stretch; gap: 3px; }
-                /* 目的地图标网格（仿桌面图标：图标 + 名字，一行三个） */
-                .rh-dest-grid {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr 1fr;
-                    gap: 6px;
-                    align-items: stretch;
+
+                /* ── 输入控件 ── */
+                .rh-input {
+                    background: #f3f5f8;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                    border-radius: 12px;
+                    padding: 8px 12px;
+                    font-size: calc(13px * var(--app-text-scale, 1));
+                    color: #1a1c22;
+                    outline: none;
+                    transition: border-color 0.2s, background 0.2s;
                 }
-                .rh-dest-tile {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 5px;
-                    padding: 12px 4px 9px;
-                    background: none;
-                    border: 1px dotted transparent;
-                    cursor: pointer;
+                .rh-input:focus {
+                    border-color: #007aff;
+                    background: #ffffff;
                 }
-                .rh-dest-tile:active { border-color: #000080; background: #e4ecf7; }
-                .rh-dest-tile-label {
+                select.rh-input {
+                    appearance: none;
+                    background-color: #f3f5f8;
+                    border-radius: 12px;
+                    padding: 8px 12px;
+                }
+                textarea.rh-input {
+                    resize: vertical;
+                    min-height: 70px;
+                }
+                .rh-form-hint {
                     font-size: calc(11px * var(--app-text-scale, 1));
-                    color: #000;
-                    text-align: center;
-                    line-height: 1.3;
-                    word-break: break-all;
+                    color: #888d9c;
                 }
-                .rh-dest {
+
+                /* ── 富文本与贴纸工具 ── */
+                .rh-fmt-bar {
                     display: flex;
-                    flex-direction: column;
-                    align-items: flex-start;
-                    gap: 1px;
-                    padding: 7px 10px;
-                    background: #fff;
-                    border: 1px solid #808080;
-                    cursor: pointer;
-                    text-align: left;
+                    gap: 4px;
+                    padding: 6px;
+                    background: #f0f2f6;
+                    border-radius: 10px;
                 }
-                .rh-dest:active { background: #000080; }
-                .rh-dest:active .rh-dest-label, .rh-dest:active .rh-dest-hint { color: #fff; }
-                .rh-dest-label { font-size: calc(13px * var(--app-text-scale, 1)); color: #000; font-weight: 700; }
-                .rh-dest-hint { font-size: calc(10px * var(--app-text-scale, 1)); color: #808080; }
-                .rh-form { flex-direction: column; align-items: stretch; gap: 8px; }
-                .rh-form label, .rh-form-field {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 3px;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    color: #000;
-                }
-                /* 排版工具栏（上传弹窗：贴纸/颜色/字号/加粗/预览） */
-                .rh-input-row { display: flex; gap: 4px; }
-                .rh-input-row .rh-input { flex: 1; min-width: 0; }
-                .rh-fmt-bar { display: flex; gap: 4px; flex-wrap: wrap; }
                 .rh-fmt-btn {
-                    background: #c0c0c0;
-                    color: #000;
-                    font-size: calc(11px * var(--app-text-scale, 1));
-                    padding: 2px 8px;
-                    border: 2px solid;
-                    border-color: #ffffff #404040 #404040 #ffffff;
+                    padding: 4px 10px;
+                    border-radius: 8px;
+                    border: none;
+                    background: #ffffff;
+                    color: #1a1c22;
+                    font-size: 11px;
+                    font-weight: 600;
                     cursor: pointer;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
                 }
-                .rh-fmt-btn:active, .rh-fmt-btn[data-active] { border-color: #404040 #ffffff #ffffff #404040; background: #d8d8d8; }
-                .rh-fmt-bold { font-weight: 700; }
+                .rh-fmt-btn[data-active] {
+                    background: #007aff;
+                    color: #ffffff;
+                }
                 .rh-sticker-panel {
                     display: grid;
                     grid-template-columns: repeat(8, 1fr);
-                    gap: 2px;
-                    padding: 4px;
-                    background: #fff;
-                    border: 1px solid #808080;
+                    gap: 4px;
+                    padding: 8px;
+                    background: #ffffff;
+                    border-radius: 14px;
+                    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+                    border: 1px solid rgba(0, 0, 0, 0.06);
                 }
                 .rh-sticker-btn {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 3px;
+                    padding: 4px;
+                    border: none;
                     background: none;
-                    border: 1px dotted transparent;
+                    cursor: pointer;
+                    border-radius: 6px;
+                }
+                .rh-sticker-btn:active {
+                    background: rgba(0, 122, 255, 0.1);
+                }
+                .rh-color-panel {
+                    display: flex;
+                    gap: 6px;
+                    padding: 8px;
+                    background: #ffffff;
+                    border-radius: 12px;
+                    border: 1px solid rgba(0, 0, 0, 0.06);
+                }
+                .rh-color-chip {
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 50%;
+                    border: 2px solid #ffffff;
+                    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
                     cursor: pointer;
                 }
-                .rh-sticker-btn:active { border-color: #000080; background: #e4ecf7; }
-                .rh-color-panel { display: flex; gap: 4px; padding: 4px; background: #fff; border: 1px solid #808080; }
-                .rh-color-chip { width: 20px; height: 20px; border: 1px solid #404040; cursor: pointer; padding: 0; }
-                .rh-desc-preview {
-                    background: #fff;
-                    border: 1px solid #808080;
-                    padding: 8px;
-                    font-size: calc(12px * var(--app-text-scale, 1));
-                    line-height: 1.7;
-                    white-space: pre-wrap;
-                    color: #000;
-                }
-                /* 所见即所得编辑器：外观与 rh-input 一致，内容直接显示排版效果 */
-                .rh-editor {
-                    line-height: 1.7;
-                    word-break: break-word;
-                    white-space: pre-wrap;
-                    -webkit-user-select: text;
-                    user-select: text;
-                    cursor: text;
-                }
-                .rh-editor-line { min-height: calc(20px * var(--app-text-scale, 1)); overflow-x: auto; white-space: nowrap; }
-                .rh-editor-area { min-height: calc(66px * var(--app-text-scale, 1)); max-height: 40vh; overflow-y: auto; }
-                .rh-editor[data-empty]::before {
-                    content: attr(data-placeholder);
-                    color: #a0a0a0;
+
+                /* ── Toast 提示 ── */
+                .rh-toast {
+                    position: absolute;
+                    left: 50%;
+                    bottom: 64px;
+                    transform: translateX(-50%);
+                    z-index: 75;
+                    background: rgba(25, 27, 33, 0.92);
+                    backdrop-filter: blur(8px);
+                    color: #ffffff;
+                    font-size: calc(13px * var(--app-text-scale, 1));
+                    font-weight: 500;
+                    padding: 8px 18px;
+                    border-radius: 20px;
+                    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+                    white-space: nowrap;
                     pointer-events: none;
                 }
-                .rh-editor img { display: inline; vertical-align: -0.22em; }
-                .rh-preview-label {
-                    font-size: calc(10px * var(--app-text-scale, 1));
-                    color: #808080;
-                    margin-bottom: 5px;
+                .rh-picked-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
                 }
-                .rh-preview-title {
-                    font-weight: 700;
-                    font-size: calc(14px * var(--app-text-scale, 1));
-                    border-bottom: 1px solid #d4d0c8;
-                    padding-bottom: 4px;
-                    margin-bottom: 6px;
+                .rh-picked {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 12px;
+                    background: #f6f8fb;
+                    border-radius: 10px;
+                    border: 1px solid rgba(0, 0, 0, 0.04);
                 }
-                .rh-input {
-                    background: #fff;
-                    border: 2px solid;
-                    border-color: #404040 #ffffff #ffffff #404040;
-                    padding: 4px 6px;
-                    font-size: calc(13px * var(--app-text-scale, 1));
-                    color: #000;
-                    outline: none;
+                .rh-picked-name {
+                    flex: 1;
+                    min-width: 0;
+                    font-size: calc(12px * var(--app-text-scale, 1));
+                    color: #1a1c22;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
-                /* 分类下拉：Win98 风格，去掉系统原生外观 */
-                select.rh-input {
-                    appearance: none;
-                    -webkit-appearance: none;
-                    background-color: #fff;
-                    background-image: linear-gradient(45deg, transparent 50%, #000 50%), linear-gradient(135deg, #000 50%, transparent 50%);
-                    background-position: calc(100% - 13px) center, calc(100% - 8px) center;
-                    background-size: 5px 5px, 5px 5px;
-                    background-repeat: no-repeat;
-                    padding-right: 26px;
-                    border-radius: 0;
+                .rh-picked-size {
+                    font-size: calc(11px * var(--app-text-scale, 1));
+                    color: #888d9c;
                 }
-                .rh-form-hint { font-size: calc(10px * var(--app-text-scale, 1)); color: #606060; line-height: 1.6; }
-                .rh-file-picker { cursor: pointer; }
-                .rh-file-picker .rh-btn { display: block; text-align: center; }
-                textarea.rh-input { resize: vertical; font-family: inherit; }
+                .rh-picked-x {
+                    color: #dc2828;
+                    border: none;
+                    background: none;
+                    cursor: pointer;
+                    font-size: 14px;
+                }
             `}</style>
         </div>
     );

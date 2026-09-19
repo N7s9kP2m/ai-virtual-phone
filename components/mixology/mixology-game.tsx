@@ -1017,7 +1017,8 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
     /** 背景观感微调：蒙版提亮（0=原样，100=无蒙版）与封面模糊，按局保存 */
     const [bgTuneOpen, setBgTuneOpen] = useState(false);
     const bgTune = session.bgTune ?? { mask: 0, blur: 0 };
-    const theme = bgTune.theme ?? "garden";
+    const globalTheme = typeof window !== "undefined" ? localStorage.getItem("mixology_theme") || "dark" : "dark";
+    const theme = bgTune.theme ?? globalTheme;
     const setBgTune = (next: NonNullable<MixSession["bgTune"]>) => {
         const updated: MixSession = { ...session, bgTune: next };
         saveMixSession(updated);
@@ -1065,9 +1066,17 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
                     <div className="mix-bgtune">
                         <div className="mix-theme-label">阅读外观</div>
                         <div className="mix-theme-options" role="group" aria-label="阅读外观">
-                            {([{ id: "garden", name: "晴日花园" }, { id: "paper", name: "暖白书页" }, { id: "dark", name: "深色夜读" }] as const).map((item) => (
+                            {([
+                                { id: "white", name: "现代素白" },
+                                { id: "paper", name: "暖白书页" },
+                                { id: "garden", name: "晴日花园" },
+                                { id: "dark", name: "深色夜读" }
+                            ] as const).map((item) => (
                                 <button type="button" key={item.id} data-theme={item.id} aria-pressed={theme === item.id}
-                                    onClick={() => setBgTune({ ...bgTune, theme: item.id })}>{item.name}</button>
+                                    onClick={() => {
+                                        setBgTune({ ...bgTune, theme: item.id });
+                                        try { localStorage.setItem("mixology_theme", item.id); } catch {}
+                                    }}>{item.name}</button>
                             ))}
                         </div>
                         <label className="mix-bgtune-row">
@@ -1092,7 +1101,7 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
                                 onChange={(e) => setBgTune({ ...bgTune, blur: Number(e.target.value) })}
                             />
                         </label>
-                        <button type="button" className="mix-bgtune-reset" onClick={() => setBgTune({ mask: 0, blur: 0, theme: "garden" })}>恢复默认</button>
+                        <button type="button" className="mix-bgtune-reset" onClick={() => setBgTune({ mask: 0, blur: 0, theme: globalTheme })}>恢复默认</button>
                     </div>
                 </>
             ) : null}

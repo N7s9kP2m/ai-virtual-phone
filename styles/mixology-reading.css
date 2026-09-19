@@ -1,6 +1,35 @@
-/* Soft daylight palettes for the game; authored ticket/HTML cards retain their own styles. */
-.mix-game:where([data-theme="garden"]),
-.mix-game:where([data-theme="paper"]) {
+/* ═══════════════════════════════════════════════════════════
+   独家特调 · 全域四色主题调色盘系统
+   适用范围：特调大厅外层 (.mixology-app) 与 对局画面 (.mix-game)
+   四色模式：现代素白(white) | 晴日花园(garden) | 暖白书页(paper) | 深色夜读(dark)
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. 现代素白 (white)：图4同款现代 iOS 纯白通透质感 ── */
+:is(.mix-game, .mixology-app):where([data-theme="white"]) {
+    --mix-bg: #f7f8fb;
+    --mix-panel: #ffffff;
+    --mix-panel-2: #f0f2f6;
+    --mix-line: rgba(0, 0, 0, 0.08);
+    --mix-violet: #4a5ee8;
+    --mix-gold: #b37e28;
+    --mix-text: #191b21;
+    --mix-dim: #606470;
+    --mix-faint: #9094a3;
+    --mix-prose: #2a2d36;
+    --mix-prose-rgb: 42, 45, 54;
+    --mix-speech: #3f4fc4;
+    --mix-emphasis: #0284c7;
+    --mix-day-sheet: rgba(255, 255, 255, 0.98);
+    --mix-day-wash: 247, 248, 251;
+    --mix-nav-bg: rgba(255, 255, 255, 0.94);
+    --mix-card-wash: rgba(255, 255, 255, 0.96);
+    --mix-glow: radial-gradient(ellipse at center, rgba(74, 94, 232, 0.08), transparent 68%);
+    color: var(--mix-text);
+    color-scheme: light;
+}
+
+/* ── 2. 晴日花园 (garden)：浅草青绿与晨曦柔光 ── */
+:is(.mix-game, .mixology-app):where([data-theme="garden"]) {
     --mix-bg: #f5f8ee;
     --mix-panel: #fffffa;
     --mix-panel-2: #edf2e5;
@@ -16,10 +45,15 @@
     --mix-emphasis: #826327;
     --mix-day-sheet: rgba(255, 255, 250, .97);
     --mix-day-wash: 245, 248, 238;
+    --mix-nav-bg: rgba(245, 248, 238, 0.94);
+    --mix-card-wash: rgba(255, 255, 250, 0.96);
+    --mix-glow: radial-gradient(ellipse at center, rgba(72, 123, 78, 0.09), transparent 68%);
     color: var(--mix-text);
     color-scheme: light;
 }
-.mix-game:where([data-theme="paper"]) {
+
+/* ── 3. 暖白书页 (paper)：图3同款温润米纸护眼调 ── */
+:is(.mix-game, .mixology-app):where([data-theme="paper"]) {
     --mix-bg: #faf5ec;
     --mix-panel: #fffcf7;
     --mix-panel-2: #f1eadd;
@@ -35,74 +69,178 @@
     --mix-emphasis: #5a744b;
     --mix-day-sheet: rgba(255, 252, 247, .97);
     --mix-day-wash: 250, 245, 236;
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-bg::after {
-    background: linear-gradient(
-        180deg,
-        rgba(var(--mix-day-wash), .78) 0%,
-        rgba(var(--mix-day-wash), .48) 26%,
-        rgba(var(--mix-day-wash), .64) 55%,
-        rgba(var(--mix-day-wash), .88) 100%
-    );
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) :is(.mix-game-title, .mix-prose) {
-    text-shadow: 0 1px 2px rgba(255, 255, 255, .7);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-inputbar {
-    background: var(--mix-day-sheet);
-    border-top-color: var(--mix-line);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-input {
-    background: var(--mix-panel);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-input::placeholder {
-    color: var(--mix-faint);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-game-input:focus {
-    border-color: var(--mix-violet);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-user-bubble {
-    background: var(--mix-panel-2);
-    border: 1px solid var(--mix-line);
+    --mix-nav-bg: rgba(250, 245, 236, 0.94);
+    --mix-card-wash: rgba(255, 252, 247, 0.96);
+    --mix-glow: radial-gradient(ellipse at center, rgba(137, 101, 63, 0.09), transparent 68%);
     color: var(--mix-text);
+    color-scheme: light;
 }
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-send-btn {
-    background: var(--mix-violet);
+
+/* ── 4. 深色夜读 / 极夜吧台 (dark)：特调经典暗金霓虹 ── */
+:is(.mix-game, .mixology-app):where([data-theme="dark"]) {
+    --mix-bg: #0b0b10;
+    --mix-panel: #15151d;
+    --mix-panel-2: #1c1c26;
+    --mix-line: rgba(255, 255, 255, 0.07);
+    --mix-violet: #8d7bf5;
+    --mix-gold: #d9b06a;
+    --mix-text: #f2f0f7;
+    --mix-dim: rgba(242, 240, 247, 0.55);
+    --mix-faint: rgba(242, 240, 247, 0.32);
+    --mix-prose: #bfbdc4;
+    --mix-prose-rgb: 191, 189, 196;
+    --mix-speech: #c9c6ff;
+    --mix-emphasis: #a8d0d8;
+    --mix-day-sheet: #15151d;
+    --mix-day-wash: 11, 11, 16;
+    --mix-nav-bg: rgba(11, 11, 16, 0.9);
+    --mix-card-wash: rgba(11, 11, 16, 0.92);
+    --mix-glow: radial-gradient(ellipse at center, rgba(141, 123, 245, 0.16), transparent 68%);
+    color: var(--mix-text);
+    color-scheme: dark;
 }
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) :is(.mix-bgtune, .mix-sheet) {
-    background: var(--mix-day-sheet);
-    border-color: var(--mix-line);
-    box-shadow: 0 12px 36px rgba(45, 61, 35, .13);
+
+/* ═══════════════════════════════════════════════════════════
+   三大浅色模式 (white / garden / paper) 统一视觉优化
+   ═══════════════════════════════════════════════════════════ */
+:is(.mix-game, .mixology-app):where([data-theme="white"], [data-theme="garden"], [data-theme="paper"]) {
+    /* 头部与滚动栏轻微阴影与底边 */
+    .mix-topbar {
+        background: var(--mix-bg);
+        box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.06);
+        border-bottom: 1px solid var(--mix-line);
+    }
+    
+    .mix-scope-toggle {
+        background: var(--mix-panel-2);
+    }
+
+    .mix-profile-chip {
+        background: var(--mix-panel-2);
+        color: var(--mix-dim);
+    }
+
+    .mix-subtabs {
+        background: var(--mix-panel-2);
+    }
+
+    .mix-subtabs button[data-active="true"] {
+        background: var(--mix-panel);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .mix-chip {
+        border: 1px solid var(--mix-line);
+    }
+
+    .mix-chip[data-active="true"] {
+        border-color: var(--mix-violet);
+        background: var(--mix-panel);
+    }
+
+    .mix-card, .mix-mat-card, .mix-session-item, .mix-recipe-card {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        border: 1px solid var(--mix-line);
+    }
+
+    .mix-recipe-bg::after {
+        background: linear-gradient(90deg, var(--mix-card-wash) 35%, rgba(var(--mix-day-wash), 0.6));
+    }
+
+    .mix-input, .mix-textarea {
+        background: var(--mix-panel);
+        border-color: var(--mix-line);
+    }
+
+    /* 对局背景淡色蒙版 */
+    .mix-game-bg::after {
+        background: linear-gradient(
+            180deg,
+            rgba(var(--mix-day-wash), .78) 0%,
+            rgba(var(--mix-day-wash), .48) 26%,
+            rgba(var(--mix-day-wash), .64) 55%,
+            rgba(var(--mix-day-wash), .88) 100%
+        );
+    }
+
+    :is(.mix-game-title, .mix-prose) {
+        text-shadow: 0 1px 2px rgba(255, 255, 255, .7);
+    }
+
+    .mix-game-inputbar {
+        background: var(--mix-day-sheet);
+        border-top-color: var(--mix-line);
+    }
+
+    .mix-game-input {
+        background: var(--mix-panel);
+    }
+
+    .mix-game-input::placeholder {
+        color: var(--mix-faint);
+    }
+
+    .mix-game-input:focus {
+        border-color: var(--mix-violet);
+    }
+
+    .mix-user-bubble {
+        background: var(--mix-panel-2);
+        border: 1px solid var(--mix-line);
+        color: var(--mix-text);
+    }
+
+    .mix-send-btn {
+        background: var(--mix-violet);
+        color: #ffffff;
+    }
+
+    :is(.mix-bgtune, .mix-sheet) {
+        background: var(--mix-day-sheet);
+        border-color: var(--mix-line);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, .10);
+    }
+
+    :is(.mix-bgtune-row span, .mix-bgtune-reset) {
+        color: var(--mix-dim);
+        border-color: var(--mix-line);
+    }
+
+    .mix-sheet-backdrop::after {
+        background: rgba(var(--mix-day-wash), .94);
+    }
+
+    .mix-icon-btn:active {
+        background: var(--mix-panel-2);
+    }
+
+    .mix-say-btn {
+        background: var(--mix-panel-2);
+        border-color: var(--mix-line);
+    }
+
+    .mix-say-btn[data-state="playing"] {
+        background: var(--mix-violet);
+        color: white;
+        box-shadow: 0 0 0 3px var(--mix-panel-2);
+    }
 }
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) :is(.mix-bgtune-row span, .mix-bgtune-reset) {
-    color: var(--mix-dim);
-    border-color: var(--mix-line);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-sheet-backdrop::after {
-    background: rgba(var(--mix-day-wash), .94);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-icon-btn:active {
-    background: var(--mix-panel-2);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-say-btn {
-    background: var(--mix-panel-2);
-    border-color: var(--mix-line);
-}
-.mix-game:where([data-theme="garden"], [data-theme="paper"]) .mix-say-btn[data-state="playing"] {
-    background: var(--mix-violet);
-    color: white;
-    box-shadow: 0 0 0 3px var(--mix-panel-2);
-}
+
+/* ═══════════════════════════════════════════════════════════
+   主题选择器控件 (四色圆球选项)
+   ═══════════════════════════════════════════════════════════ */
 .mix-theme-label {
     color: var(--mix-dim);
     font-size: 12px;
     margin-bottom: 8px;
 }
+
 .mix-theme-options {
     display: flex;
     gap: 6px;
     margin-bottom: 16px;
 }
+
 .mix-theme-options button {
     flex: 1;
     min-width: 0;
@@ -114,7 +252,9 @@
     font: inherit;
     font-size: 11px;
     cursor: pointer;
+    transition: all 0.2s;
 }
+
 .mix-theme-options button::before {
     content: "";
     display: block;
@@ -125,8 +265,22 @@
     border: 1px solid rgba(100, 100, 100, .2);
     background: #f5f8ee;
 }
-.mix-theme-options button[data-theme="paper"]::before { background: #faf5ec; }
-.mix-theme-options button[data-theme="dark"]::before { background: #15151d; }
+
+.mix-theme-options button[data-theme="white"]::before {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.18);
+}
+
+.mix-theme-options button[data-theme="paper"]::before {
+    background: #faf5ec;
+    border-color: rgba(109, 82, 53, 0.2);
+}
+
+.mix-theme-options button[data-theme="dark"]::before {
+    background: #15151d;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
 .mix-theme-options button[aria-pressed="true"] {
     border-color: var(--mix-violet);
     outline: 1px solid var(--mix-violet);

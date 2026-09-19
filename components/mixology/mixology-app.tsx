@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-    Archive, ChevronLeft, Copy, Download, GlassWater, ImageDown, Martini, MoreHorizontal, Pencil, Play, Plug, Plus, RefreshCw, Share2, SlidersHorizontal, Trash2, Upload, Users, Wine, X } from "lucide-react";
+    Archive, ChevronLeft, Copy, Download, GlassWater, ImageDown, Martini, MoreHorizontal, Pencil, Play, Plug, Plus, RefreshCw, Share2, SlidersHorizontal, Sun, Trash2, Upload, Users, Wine, X } from "lucide-react";
 import {
     clearMixMaterialPublished,
     clearMixRecipePublished,
@@ -91,6 +91,19 @@ type MixTab = "menu" | "hall" | "bar" | "cabinet" | "games";
 
 export function MixologyApp({ onClose }: { onClose: () => void }) {
     const [tab, setTab] = useState<MixTab>("bar");
+    const [theme, setTheme] = useState<string>(() => {
+        if (typeof window !== "undefined") {
+            return localStorage.getItem("mixology_theme") || "dark";
+        }
+        return "dark";
+    });
+    const [themeSheetOpen, setThemeSheetOpen] = useState(false);
+    const handleSetTheme = (nextTheme: string) => {
+        setTheme(nextTheme);
+        if (typeof window !== "undefined") {
+            try { localStorage.setItem("mixology_theme", nextTheme); } catch {}
+        }
+    };
     const [cabinet, setCabinet] = useState<MixMaterial[]>(() => loadMixCabinet());
     const [recipes, setRecipes] = useState<MixRecipe[]>(() => loadMixRecipes());
     const [sessions, setSessions] = useState<MixSession[]>(() => loadMixSessions());
@@ -601,7 +614,7 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
     // ── 对局画面全屏接管 ──
     if (playing) {
         return (
-            <div className="mixology-app">
+            <div className="mixology-app" data-theme={theme}>
                 <MixologyGame
                     sessionId={playing}
                     onBack={() => { setPlaying(null); refresh(); }}
@@ -634,10 +647,19 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
         : null;
 
     return (
-        <div className="mixology-app">
+        <div className="mixology-app" data-theme={theme}>
             <div className="mix-header">
                 <button type="button" className="mix-icon-btn" onClick={onClose} aria-label="关闭"><ChevronLeft size={20} /></button>
                 <div className="mix-header-title">独家<em>特调</em></div>
+                <button
+                    type="button"
+                    className="mix-icon-btn"
+                    onClick={() => setThemeSheetOpen((v) => !v)}
+                    aria-label="切换全域外观"
+                    title="全域外观（四色切换）"
+                >
+                    <Sun size={17} />
+                </button>
                 {tab === "cabinet" ? (
                     <>
                         <button
@@ -677,6 +699,36 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
                     </>
                 ) : null}
             </div>
+
+            {themeSheetOpen ? (
+                <>
+                    <div className="mix-bgtune-mask" onClick={() => setThemeSheetOpen(false)} />
+                    <div className="mix-bgtune" style={{ top: "calc(var(--page-header-safe-top, 48px) + 38px)", right: "12px", zIndex: 45 }}>
+                        <div className="mix-theme-label">特调全域外观</div>
+                        <div className="mix-theme-options" role="group" aria-label="全域外观">
+                            {([
+                                { id: "white", name: "现代素白" },
+                                { id: "paper", name: "暖白书页" },
+                                { id: "garden", name: "晴日花园" },
+                                { id: "dark", name: "深色夜读" }
+                            ] as const).map((item) => (
+                                <button
+                                    type="button"
+                                    key={item.id}
+                                    data-theme={item.id}
+                                    aria-pressed={theme === item.id}
+                                    onClick={() => {
+                                        handleSetTheme(item.id);
+                                        setThemeSheetOpen(false);
+                                    }}
+                                >
+                                    {item.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            ) : null}
 
             {/* TAG 行在滚动容器之外：真固定，橡皮筋回弹只作用下面的内容区 */}
             {tab === "menu" || tab === "cabinet" ? (
