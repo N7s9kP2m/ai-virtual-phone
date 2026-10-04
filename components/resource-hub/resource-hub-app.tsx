@@ -122,6 +122,8 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
     const [deleting, setDeleting] = useState(false);
     // 浏览集市 / 我的货摊
     const [viewMode, setViewMode] = useState<"market" | "mine" | "build">("market");
+    // 浏览他人作者主页（作者货摊）
+    const [viewingAuthor, setViewingAuthor] = useState<{ name: string; avatar?: string; ownerHash?: string } | null>(null);
     // 共同建设：贡献墙（只展示已被官方采纳=已合并的社区 PR）
     const [buildWall, setBuildWall] = useState<MergedContribution[] | null>(null);
     const [buildWallState, setBuildWallState] = useState<"idle" | "loading" | "error">("idle");
@@ -329,13 +331,12 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
 
     useEffect(() => { reload(source); }, [reload, source]);
 
-    // 切到我的货摊时拉取花数（仅作者本人可见的统计）
+    // 进入集市或索引更新时拉取全局花数统计
     useEffect(() => {
-        if (viewMode !== "mine") return;
         let cancelled = false;
         void fetchFlowerCounts(source).then(counts => { if (!cancelled) setFlowerCounts(counts); });
         return () => { cancelled = true; };
-    }, [viewMode, source, index]);
+    }, [source, index]);
 
     const folderEntries = useMemo(() => {
         if (!index || !activeFolder) return [];
@@ -378,6 +379,24 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
         // index 变化或切到货摊时重算
     }, [index, viewMode, identityHash]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // 他人作者主页：根据作者昵称或 ownerHash 聚合其公开发布的所有作品
+    const authorEntries = useMemo(() => {
+        if (!index || !viewingAuthor) return [];
+        return index.entries.filter(e => {
+            if (viewingAuthor.ownerHash && e.ownerHash) {
+                return e.ownerHash === viewingAuthor.ownerHash;
+            }
+            const authorName = (e.author?.trim() || "匿名投稿人").toLowerCase();
+            return authorName === viewingAuthor.name.toLowerCase();
+        }).sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "") || a.name.localeCompare(b.name, "zh"));
+    }, [index, viewingAuthor]);
+
+    // 该作者所有作品累计收到的花数总和
+    const authorTotalFlowers = useMemo(() => {
+        if (!flowerCounts || authorEntries.length === 0) return 0;
+        return authorEntries.reduce((sum, e) => sum + (flowerCounts[e.path] ?? 0), 0);
+    }, [flowerCounts, authorEntries]);
+
     const chatContacts = useMemo(() => {
         if (pickCharacterFor === null) return [];
         const characters = loadCharacters();
@@ -395,8 +414,16 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
         if (!silent) setSendingFlower(true);
         try {
             const sent = await sendFlower(loadUploadConfig().endpoint, entryPath);
-            if (sent) showToast("已送出一朵花 🌸");
-            else if (!silent) showToast("今天已经给它送过花啦");
+            if (sent) {
+                showToast("已送出一朵花 🌸");
+                setFlowerCounts(prev => {
+                    const next = { ...(prev || {}) };
+                    next[entryPath] = (next[entryPath] ?? 0) + 1;
+                    return next;
+                });
+            } else if (!silent) {
+                showToast("今天已经给它送过花啦");
+            }
         } finally {
             if (!silent) setSendingFlower(false);
         }
@@ -706,12 +733,20 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
         </>
     );
 
-    const title = activeEntry ? activeEntry.name : activeFolder ? activeFolder : "资源集市";
+    const title = activeEntry
+        ? activeEntry.name
+        : viewingAuthor
+            ? `${viewingAuthor.name} 的货摊`
+            : activeFolder
+                ? activeFolder
+                : "资源集市";
     const handleBack = activeEntry
         ? () => setActiveEntry(null)
-        : activeFolder
-            ? () => setActiveFolder(null)
-            : onClose;
+        : viewingAuthor
+            ? () => setViewingAuthor(null)
+            : activeFolder
+                ? () => setActiveFolder(null)
+                : onClose;
 
     /** 作者头像：优先用随资源发布的 .avatar.png；自己的帖子退回本机头像；都没有就用默认像素头像 */
     const renderAuthorAvatar = (entry: ShareIndexEntry | null, size: number) => {
@@ -791,18 +826,34 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     </div>
                 </div>
 
-                {/* 现代面包屑导航（当进入文件夹或条目时展示，取代古早 C:\ 路径条） */}
-                {(activeFolder || activeEntry) && (
+                {/* 现代面包屑导航（当进入文件夹、条目或他人主页时展示，取代古早 C:\ 路径条） */}
+                {(activeFolder || activeEntry || viewingAuthor) && (
                     <div className="rh-breadcrumb">
-                        <button type="button" className="rh-crumb-item" onClick={() => { setActiveEntry(null); setActiveFolder(null); }}>
+                        <button type="button" className="rh-crumb-item" onClick={() => { setActiveEntry(null); setActiveFolder(null); setViewingAuthor(null); }}>
                             集市
                         </button>
-                        {activeFolder && (
+                        {viewingAuthor && (
                             <>
                                 <span className="rh-crumb-sep">/</span>
-                                <button type="button" className="rh-crumb-item" onClick={() => setActiveEntry(null)}>
-                                    {activeFolder}
-                                </button>
+                                {activeEntry ? (
+                                    <button type="button" className="rh-crumb-item" onClick={() => setActiveEntry(null)}>
+                                        {viewingAuthor.name} 的货摊
+                                    </button>
+                                ) : (
+                                    <span className="rh-crumb-current">{viewingAuthor.name} 的货摊</span>
+                                )}
+                            </>
+                        )}
+                        {!viewingAuthor && activeFolder && (
+                            <>
+                                <span className="rh-crumb-sep">/</span>
+                                {activeEntry ? (
+                                    <button type="button" className="rh-crumb-item" onClick={() => setActiveEntry(null)}>
+                                        {activeFolder}
+                                    </button>
+                                ) : (
+                                    <span className="rh-crumb-current">{activeFolder}</span>
+                                )}
                             </>
                         )}
                         {activeEntry && (
@@ -815,14 +866,14 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                 )}
 
                 {/* 浏览集市 / 我的货摊 / 共同建设 现代分段选择器 */}
-                {!activeEntry && (
+                {!activeEntry && !viewingAuthor && (
                     <div className="rh-tabs">
                         <button className="rh-tab" data-active={viewMode === "market" ? "1" : undefined}
-                            onClick={() => setViewMode("market")}>浏览集市</button>
+                            onClick={() => { setViewMode("market"); setViewingAuthor(null); }}>浏览集市</button>
                         <button className="rh-tab" data-active={viewMode === "mine" ? "1" : undefined}
-                            onClick={() => { setViewMode("mine"); setActiveFolder(null); setSearchQuery(""); }}>我的货摊</button>
+                            onClick={() => { setViewMode("mine"); setViewingAuthor(null); setActiveFolder(null); setSearchQuery(""); }}>我的货摊</button>
                         <button className="rh-tab" data-active={viewMode === "build" ? "1" : undefined}
-                            onClick={enterBuildTab}>共同建设</button>
+                            onClick={() => { setViewingAuthor(null); enterBuildTab(); }}>共同建设</button>
                     </div>
                 )}
 
@@ -940,8 +991,43 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                         )
                     )}
 
+                    {/* 他人作者主页（作者货摊） */}
+                    {loadState === "ready" && viewingAuthor && !activeEntry && (
+                        <div className="rh-entry-list">
+                            {/* 作者资料卡：头像 + 昵称 + 统计 */}
+                            <div className="rh-profile-card">
+                                <div className="rh-profile-avatar">
+                                    {renderAuthorAvatar(authorEntries[0] ?? null, 54)}
+                                </div>
+                                <div className="rh-profile-main">
+                                    <div className="rh-profile-name-row">
+                                        <div className="rh-profile-nickname-static">
+                                            {viewingAuthor.name}
+                                        </div>
+                                    </div>
+                                    <div className="rh-profile-stats">
+                                        <span>已发布 <b>{authorEntries.length}</b></span>
+                                        <span>累计收到 <b>{flowerCounts ? authorTotalFlowers : "…"}</b> 🌸</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {authorEntries.length > 0 && (
+                                <div className="rh-stall-flowers">
+                                    {flowerCounts
+                                        ? `🌸 该作者所有作品累计共收到 ${authorTotalFlowers} 朵花`
+                                        : <><PixelHourglass size={13} /> 正在统计收到的花…</>}
+                                </div>
+                            )}
+                            {authorEntries.length > 0 ? (
+                                authorEntries.map(entry => renderEntryRow(entry, true, flowerCounts ? (flowerCounts[entry.path] ?? 0) : undefined))
+                            ) : (
+                                <div className="rh-center-hint">暂未找到该作者的其他公开发布作品</div>
+                            )}
+                        </div>
+                    )}
+
                     {/* 搜索框（首页与文件夹页显示） */}
-                    {loadState === "ready" && viewMode === "market" && !activeEntry && (
+                    {loadState === "ready" && viewMode === "market" && !activeEntry && !viewingAuthor && (
                         <div className="rh-search-row">
                             <input
                                 className="rh-input rh-search-input"
@@ -956,10 +1042,10 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     )}
 
                     {/* 搜索结果（有关键词时替代当前列表） */}
-                    {loadState === "ready" && viewMode === "market" && !activeEntry && searchResults && (
+                    {loadState === "ready" && viewMode === "market" && !activeEntry && !viewingAuthor && searchResults && (
                         searchResults.length > 0 ? (
                             <div className="rh-entry-list">
-                                {searchResults.map(entry => renderEntryRow(entry, true))}
+                                {searchResults.map(entry => renderEntryRow(entry, true, flowerCounts ? (flowerCounts[entry.path] ?? 0) : undefined))}
                             </div>
                         ) : (
                             <div className="rh-center-hint">没有匹配「{searchQuery.trim()}」的资源</div>
@@ -1012,7 +1098,7 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     )}
 
                     {/* 首页：文件夹（一行两个） */}
-                    {loadState === "ready" && viewMode === "market" && !activeFolder && !searchResults && (
+                    {loadState === "ready" && viewMode === "market" && !activeFolder && !searchResults && !viewingAuthor && (
                         index && index.folders.length > 0 ? (
                             <div className="rh-folder-grid">
                                 {index.folders.map(folder => (
@@ -1029,10 +1115,10 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     )}
 
                     {/* 文件夹页：论坛式列表 */}
-                    {loadState === "ready" && viewMode === "market" && activeFolder && !activeEntry && !searchResults && (
+                    {loadState === "ready" && viewMode === "market" && activeFolder && !activeEntry && !searchResults && !viewingAuthor && (
                         folderEntries.length > 0 ? (
                             <div className="rh-entry-list">
-                                {folderEntries.map(entry => renderEntryRow(entry))}
+                                {folderEntries.map(entry => renderEntryRow(entry, false, flowerCounts ? (flowerCounts[entry.path] ?? 0) : undefined))}
                             </div>
                         ) : (
                             <div className="rh-center-hint">这个文件夹还是空的</div>
@@ -1046,14 +1132,47 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                                 {/* 发帖式排版：标题 → 正文 → 图片（标记语法经 RichText 安全渲染） */}
                                 {/* 第一行：头像 + 昵称/时间 +（作者才有的）编辑、删除 */}
                                 <div className="rh-detail2-head">
-                                    {renderAuthorAvatar(activeEntry, 40)}
-                                    <div className="rh-detail2-head-main">
-                                        <div className="rh-detail2-author">
-                                            {activeEntry.author?.trim()
+                                    <div
+                                        className="rh-detail2-author-link"
+                                        role="button"
+                                        tabIndex={0}
+                                        title="点击查看作者主页与收到的花"
+                                        onClick={() => {
+                                            const authorName = activeEntry.author?.trim()
                                                 || (myRecordFor(activeEntry.path) ? profile.nickname : "")
-                                                || "匿名投稿人"}
+                                                || "匿名投稿人";
+                                            if (myRecordFor(activeEntry.path) || (identityHash && activeEntry.ownerHash && activeEntry.ownerHash === identityHash)) {
+                                                setViewMode("mine");
+                                                setViewingAuthor(null);
+                                                setActiveEntry(null);
+                                                setActiveFolder(null);
+                                                return;
+                                            }
+                                            setViewingAuthor({
+                                                name: authorName,
+                                                avatar: activeEntry.avatar,
+                                                ownerHash: activeEntry.ownerHash,
+                                            });
+                                            setActiveEntry(null);
+                                        }}
+                                    >
+                                        {renderAuthorAvatar(activeEntry, 40)}
+                                        <div className="rh-detail2-head-main">
+                                            <div className="rh-detail2-author">
+                                                <span>
+                                                    {activeEntry.author?.trim()
+                                                        || (myRecordFor(activeEntry.path) ? profile.nickname : "")
+                                                        || "匿名投稿人"}
+                                                </span>
+                                                <span className="rh-author-pill">查看主页 ›</span>
+                                            </div>
+                                            <div className="rh-detail2-time">
+                                                {formatEntryDate(activeEntry.updatedAt)}
+                                                {flowerCounts && (
+                                                    <span className="rh-detail2-flowers-tag"> · 🌸 {flowerCounts[activeEntry.path] ?? 0}</span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="rh-detail2-time">{formatEntryDate(activeEntry.updatedAt)}</div>
                                     </div>
                                     {myRecordFor(activeEntry.path) && (
                                         <div className="rh-detail2-head-actions">
@@ -1121,7 +1240,9 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                                 >
                                     {sendingFlower
                                         ? <><PixelHourglass size={13} /> 送出中</>
-                                        : hasSentFlowerToday(activeEntry.path) ? "已送🌸" : "送花🌸"}
+                                        : hasSentFlowerToday(activeEntry.path)
+                                            ? `已送🌸 (${flowerCounts ? (flowerCounts[activeEntry.path] ?? 0) : "…"})`
+                                            : `送花🌸 (${flowerCounts ? (flowerCounts[activeEntry.path] ?? 0) : "…"})`}
                                 </button>
                                 {activeEntry.files.length > 0 && (
                                     <>
@@ -2190,6 +2311,44 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                 .rh-detail2-time {
                     font-size: calc(11px * var(--app-text-scale, 1));
                     color: #888d9c;
+                }
+                .rh-detail2-author-link {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    flex: 1;
+                    min-width: 0;
+                    padding: 3px 6px;
+                    margin: -3px -6px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    user-select: none;
+                    transition: background 0.15s ease;
+                }
+                .rh-detail2-author-link:hover {
+                    background: rgba(0, 0, 0, 0.05);
+                }
+                .rh-author-pill {
+                    display: inline-flex;
+                    align-items: center;
+                    margin-left: 6px;
+                    padding: 1px 6px;
+                    font-size: calc(10px * var(--app-text-scale, 1));
+                    font-weight: 600;
+                    color: #0284c7;
+                    background: #e0f2fe;
+                    border-radius: 999px;
+                    vertical-align: middle;
+                }
+                .rh-detail2-flowers-tag {
+                    color: #e11d48;
+                    font-weight: 600;
+                }
+                .rh-profile-nickname-static {
+                    font-size: calc(16px * var(--app-text-scale, 1));
+                    font-weight: 700;
+                    color: #1e293b;
+                    padding: 2px 0;
                 }
                 .rh-detail2-head-actions {
                     display: flex;
